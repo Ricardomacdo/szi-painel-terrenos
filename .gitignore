@@ -1,0 +1,16 @@
+# Segredos — NUNCA subir para o GitHub
+.nekt_secrets
+nekt_token.json
+*.token
+.env
+secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Streamlit local
+.streamlit/secrets.toml
