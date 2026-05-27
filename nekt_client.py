@@ -24,10 +24,18 @@ def _load_jwt() -> str:
         with open(secrets_path) as f:
             data = json.load(f)
             return data.get("jwt_token", "")
-    # 3. Streamlit secrets
+    # 3. Streamlit secrets (vários formatos aceitos)
     try:
         import streamlit as st
-        return st.secrets["nekt"]["jwt_token"]
+        # Formato simples: NEKT_JWT_TOKEN = "..."
+        if "NEKT_JWT_TOKEN" in st.secrets:
+            return str(st.secrets["NEKT_JWT_TOKEN"])
+        # Formato com seção: [nekt] / jwt_token = "..."
+        if "nekt" in st.secrets:
+            return str(st.secrets["nekt"]["jwt_token"])
+        # Formato plano: jwt_token = "..."
+        if "jwt_token" in st.secrets:
+            return str(st.secrets["jwt_token"])
     except Exception:
         pass
     return ""
