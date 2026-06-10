@@ -684,6 +684,10 @@ else:
     df_raw = demo_data()
     DEMO = True
 
+# ── FILTRO FARMER ──────────────────────────────────────────────────────────────
+# Exibe apenas terrenos do Farmer (Ricardo Macedo)
+df_raw = df_raw[df_raw["analista"] == "Farmer"].copy()
+
 # ── RENDER CARD (estilo Pipefy) ───────────────────────────────────────────────
 def render_card(row):
     fase_atual  = row.get("fase_atual", "")
@@ -920,8 +924,8 @@ if DEMO:
     st.info("Modo demonstração — selecione 'Nekt (dados reais)' na barra lateral para ver os dados reais.", icon="ℹ️")
 
 # ── ABAS ──────────────────────────────────────────────────────────────────────
-tab_dash, tab_analistas, tab_ficha, tab_alertas = st.tabs([
-    "📊 Dashboard", "👤 Executivo de Canais", "🔍 Ficha do Terreno", "⚠️ Alertas"
+tab_dash, tab_analistas, tab_ficha, tab_alertas, tab_matricula = st.tabs([
+    "📊 Dashboard", "👤 Executivo de Canais", "🔍 Ficha do Terreno", "⚠️ Alertas", "📋 Validar Matrícula"
 ])
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1526,6 +1530,80 @@ with tab_alertas:
         st.subheader("📞 Corretores — Pipedrive")
         st.dataframe(df_pd_raw[["terreno","status_pd","corretor","valor_pd"]].head(50),
                      width='stretch', hide_index=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ABA 5 — VALIDAR MATRÍCULA
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_matricula:
+    st.subheader("📋 Validar Matrícula")
+    st.caption("Faça upload da matrícula recebida pelo WhatsApp para validar as informações antes de cadastrar o card.")
+
+    col_card, col_upload = st.columns([1, 1])
+
+    with col_card:
+        st.markdown("**1. Selecione o terreno**")
+        opcoes_terreno = ["— Novo terreno (sem card) —"] + df_raw["terreno"].dropna().tolist() if not df_raw.empty else ["— Novo terreno (sem card) —"]
+        terreno_sel = st.selectbox("Terreno:", opcoes_terreno, key="mat_terreno_sel")
+
+    with col_upload:
+        st.markdown("**2. Anexe a matrícula**")
+        arquivo = st.file_uploader(
+            "Imagem ou PDF da matrícula",
+            type=["jpg", "jpeg", "png", "pdf"],
+            key="mat_upload"
+        )
+
+    st.markdown("---")
+
+    if arquivo is not None:
+        if st.button("🔍 Validar Matrícula", key="btn_validar_matricula", type="primary"):
+            mime_map = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "png": "image/png", "pdf": "application/pdf"
+            }
+            ext = arquivo.name.rsplit(".", 1)[-1].lower()
+            media_type = mime_map.get(ext, "image/jpeg")
+
+            with st.spinner("Analisando documento com IA..."):
+                try:
+                    from ai_client import validar_matricula
+                    resultado = validar_matricula(arquivo.read(), media_type)
+                    st.session_state["mat_resultado"] = resultado
+                    st.session_state["mat_terreno"] = terreno_sel
+                except Exception as e:
+                    st.error(f"Erro ao validar: {e}")
+                    st.session_state.pop("mat_resultado", None)
+
+    if "mat_resultado" in st.session_state:
+        r = st.session_state["mat_resultado"]
+        terreno_nome = st.session_state.get("mat_terreno", "—")
+
+        alertas = r.get("alertas") or []
+        if alertas:
+            st.error(f"⚠️ {len(alertas)} problema(s) encontrado(s) na matrícula de **{terreno_nome}**")
+            for alerta in alertas:
+                st.warning(f"• {alerta}")
+        else:
+            st.success(f"✅ Matrícula de **{terreno_nome}** validada sem divergências.")
+
+        st.markdown("#### Informações extraídas")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Nº Matrícula", r.get("numero_matricula") or "—")
+            st.metric("Status", r.get("status_matricula") or "—")
+        with col2:
+            st.metric("Proprietário", r.get("proprietario") or "—")
+            st.metric("Área (m²)", r.get("area_m2") or "—")
+        with col3:
+            st.metric("Data de Emissão", r.get("data_emissao") or "—")
+            st.metric("Localização", r.get("localizacao") or "—")
+
+        if st.button("🗑️ Limpar resultado", key="btn_limpar_mat"):
+            st.session_state.pop("mat_resultado", None)
+            st.session_state.pop("mat_terreno", None)
+            st.rerun()
+    elif arquivo is None:
+        st.info("Faça upload de uma matrícula acima para iniciar a validação.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # AI ASSISTANT — CHAT
