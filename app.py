@@ -217,7 +217,7 @@ def _field_str(fields, *keys):
                 return str(fv).strip()
     return None
 
-@st.cache_data(ttl=300, show_spinner="Buscando dados do Pipefy…")
+@st.cache_data(ttl=0, show_spinner="Buscando dados do Pipefy…")
 def fetch_pipefy(token: str) -> pd.DataFrame:
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     rows, cursor, has_next = [], None, True
@@ -271,7 +271,7 @@ def fetch_pipefy(token: str) -> pd.DataFrame:
     df["dias_na_fase"] = (datetime.today() - df["data_fase"]).dt.days
     return df
 
-@st.cache_data(ttl=300, show_spinner="Buscando Pipedrive…")
+@st.cache_data(ttl=0, show_spinner="Buscando Pipedrive…")
 def fetch_pipedrive(token: str) -> pd.DataFrame:
     url = f"https://{PIPEDRIVE_DOMAIN}.pipedrive.com/api/v1/deals"
     rows, start = [], 0
@@ -306,7 +306,7 @@ def _temp_to_interesse(t) -> int | None:
     """Mapeia temperatura → interesse 1-5 (aproximado)."""
     return {"Quente": 4, "Morno": 3, "Frio": 2}.get(str(t).strip(), None)
 
-@st.cache_data(ttl=300, show_spinner="Buscando dados do Nekt…")
+@st.cache_data(ttl=0, show_spinner="Buscando dados do Nekt…")
 def fetch_nekt_data() -> pd.DataFrame:
     """Carrega dados reais do Pipefy via Nekt MCP e normaliza para o painel."""
     from nekt_client import get_painel_data
