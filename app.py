@@ -988,20 +988,72 @@ with tab_dash:
         if st.button("Gerar análise", key="btn_insights"):
             try:
                 from ai_client import ask_claude
-                travados_nomes = df[dias_num >= 15][["id","terreno","fase_atual","analista"]].to_dict("records") if not dias_num.empty else []
-                falta_info_nomes = df[df["fase_atual"] == "Falta Informação"][["id","terreno","analista"]].to_dict("records")
+
+                # --- dados de contexto ---
+                travados_nomes = df[dias_num >= 15][["id","terreno","fase_atual","dias_na_fase"]].to_dict("records") if not dias_num.empty else []
                 top_vgv = df.nlargest(5, "vgv")[["id","terreno","cidade","vgv","score","fase_atual"]].to_dict("records")
-                contexto = f"""Estado atual do funil SZI Terrenos:
+
+                # campos faltantes por terreno em Falta Informação
+                CAMPOS_VERIFICAR = {
+                    "preco":              "Valor/Preço",
+                    "area_m2":            "Área (m²)",
+                    "dimensao_terreno":   "Dimensões",
+                    "id_zoneamento":      "Zoneamento",
+                    "contato_parceiro":   "Contato do parceiro",
+                    "pasta_documentos":   "Pasta de documentos",
+                    "triagem_inicial":    "Triagem inicial",
+                }
+                fi_rows = df[df["fase_atual"] == "Falta Informação"]
+                falta_info_detalhado = []
+                for _, r in fi_rows.iterrows():
+                    faltando = [label for col, label in CAMPOS_VERIFICAR.items()
+                                if not r.get(col) or str(r.get(col,"")).strip() in ("","None","nan","0","0.0")]
+                    falta_info_detalhado.append({
+                        "id": r.get("id",""),
+                        "terreno": r.get("terreno",""),
+                        "cidade": r.get("cidade",""),
+                        "corretor": r.get("corretor",""),
+                        "campos_faltantes": faltando,
+                    })
+
+                # terrenos com score alto ainda parados na triagem
+                oportunidades = df[
+                    (pd.to_numeric(df["score"], errors="coerce") >= SCORE_MINIMO) &
+                    (df["fase_atual"].isin(["Não Iniciado","Triagem de terrenos","Análise Preliminar"]))
+                ][["id","terreno","cidade","score","fase_atual","dias_na_fase"]].to_dict("records")
+
+                contexto = f"""Você é o copiloto do Ricardo, Analista de Prospecção de Terrenos da Seazone Investimentos.
+
+=== ESTADO DO FUNIL (hoje) ===
 - Total no funil: {total} terrenos
 - VGV potencial: R$ {vgv_total/1e6:.1f}M
 - Qualificados (score ≥{SCORE_MINIMO}): {qualificados}
-- Travados (≥15 dias): {travados} terrenos → {travados_nomes}
-- Falta Informação: {falta_info} terrenos → {falta_info_nomes}
 - Backup (abaixo da régua): {backups}
-- Top 5 por VGV: {top_vgv}
+- Sem matrícula: {sem_matricula}
 
-Com base nesses dados, faça uma análise objetiva: quais são os 3 pontos de atenção mais urgentes? Quais terrenos merecem ação imediata? Qual a saúde geral do funil?"""
-                with st.spinner("Analisando funil..."):
+=== TRAVADOS (≥15 dias sem movimentação) ===
+{travados_nomes if travados_nomes else "Nenhum terreno travado."}
+
+=== FALTA INFORMAÇÃO — CAMPOS ESPECÍFICOS FALTANDO ===
+{falta_info_detalhado if falta_info_detalhado else "Nenhum terreno com informação faltante."}
+
+=== OPORTUNIDADES — score alto ainda na triagem ===
+{oportunidades if oportunidades else "Nenhuma oportunidade identificada."}
+
+=== TOP 5 POR VGV ===
+{top_vgv}
+
+=== TAREFA ===
+Monte um PLANO DO DIA para o Ricardo em 4 seções:
+
+**1. 🚨 Ações urgentes** — o que fazer primeiro (travados + falta info)
+**2. 📋 Mensagens para corretores** — para cada terreno em Falta Informação, escreva uma mensagem direta no WhatsApp pedindo exatamente os campos que faltam (use o nome do terreno/cidade)
+**3. 🚀 Oportunidades do dia** — terrenos qualificados que podem avançar no funil hoje
+**4. 📊 Saúde do funil** — avaliação geral em 3 linhas + 1 recomendação estratégica
+
+Seja direto, prático e use dados concretos. Português brasileiro."""
+
+                with st.spinner("Montando plano do dia..."):
                     analise = ask_claude(contexto)
                 st.markdown(analise)
             except Exception as e:
