@@ -1224,6 +1224,27 @@ with tab_analistas:
         m6.metric("Perdidos",                    perdidos_an)
         m7.metric("🔴 Travados (≥15d)",          travados_an, delta_color="inverse")
 
+        # ── ANÁLISE IA POR EXECUTIVO ──────────────────────────────────────────
+        if st.button(f"🤖 Analisar carteira de {analista}", key=f"btn_ia_{analista}"):
+            try:
+                from ai_client import ask_claude
+                fases_an = df_an["fase_atual"].value_counts().to_dict()
+                top5_an  = df_an.nlargest(5, "vgv")[["id","terreno","cidade","score","fase_atual"]].to_dict("records") if "vgv" in df_an.columns else []
+                travados_lista = df_an[dias_an >= 15][["id","terreno","fase_atual"]].to_dict("records") if not dias_an.empty else []
+                contexto_an = f"""Carteira do executivo {analista}:
+- Total: {total_an} terrenos | Ativos: {ativos_an} | Qualificados (≥{SCORE_MINIMO}): {qualif_an}
+- VGV potencial: R$ {vgv_an_tot/1e6:.1f}M | Ganhos: {ganhos_an} | Perdidos: {perdidos_an}
+- Travados (≥15 dias): {travados_an} → {travados_lista}
+- Distribuição por fase: {fases_an}
+- Top 5 por VGV: {top5_an}
+
+Faça uma análise da carteira deste executivo: como está o desempenho? Quais terrenos merecem atenção imediata? Qual a recomendação de próximos passos?"""
+                with st.spinner(f"Analisando carteira de {analista}..."):
+                    analise_an = ask_claude(contexto_an)
+                st.markdown(analise_an)
+            except Exception as e:
+                st.error(f"Erro na análise IA: {e}")
+
         col_esq, col_dir = st.columns([1, 2])
 
         with col_esq:
