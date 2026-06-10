@@ -1403,13 +1403,24 @@ with tab_alertas:
             )
             alertas = True
 
-    # Falta Informação — mostra ID e quais campos estão faltando
+    # Falta Informação — mostra ID, campos faltantes e status do Polígono
     fi_df = df_ativo[df_ativo["fase_atual"] == "Falta Informação"]
     if not fi_df.empty:
         st.markdown("### ℹ️ Falta Informação")
+
+        # Busca status do Polígono direto do Pipefy
+        pipefy_docs = {}
+        try:
+            from pipefy_client import get_docs_by_card_ids
+            card_ids = fi_df["id_do_card"].dropna().astype(str).tolist()
+            if card_ids:
+                with st.spinner("Verificando polígonos no Pipefy..."):
+                    pipefy_docs = get_docs_by_card_ids(card_ids)
+        except Exception:
+            pass
+
         for _, r in fi_df.iterrows():
             faltando = []
-            # Verifica campo a campo o que está vazio ou inválido
             valor_raw = str(r.get("valor","") or "").strip()
             if not valor_raw or valor_raw in ("0,00","0.00","0",""):
                 faltando.append("Valor/Preço")
@@ -1428,15 +1439,33 @@ with tab_alertas:
             if not str(r.get("triagem_inicial","") or "").strip():
                 faltando.append("Triagem inicial")
 
+            # Status do Polígono via Pipefy
+            card_id_str = str(r.get("id_do_card","") or "")
+            doc_info    = pipefy_docs.get(card_id_str, {})
+            if doc_info:
+                if doc_info.get("poligono_ok"):
+                    poligono_txt = "✅ Polígono anexado"
+                    if doc_info.get("poligono_url"):
+                        poligono_txt += f" — [ver arquivo]({doc_info['poligono_url']})"
+                else:
+                    poligono_txt = "❌ Polígono não anexado"
+                    faltando.insert(0, "Polígono")
+                matricula_val = doc_info.get("matricula")
+                matricula_txt = f"Matrícula: **{matricula_val}**" if matricula_val else "Matrícula: —"
+            else:
+                poligono_txt  = "⚠️ Polígono: não verificado (configure PIPEFY_TOKEN)"
+                matricula_txt = ""
+
             faltando_txt = " · ".join(f"❌ {f}" for f in faltando) if faltando else "✅ Campos básicos preenchidos"
-            dias_fi = int(r.get("dias_na_fase", 0) or 0)
-            pipefy_url = f"https://app.pipefy.com/pipes/{PIPEFY_PIPE_ID}#cards/{r.get('id_do_card', r.get('id',''))}"
+            dias_fi  = int(r.get("dias_na_fase", 0) or 0)
+            pip_url  = f"https://app.pipefy.com/pipes/{PIPEFY_PIPE_ID}#cards/{card_id_str or r.get('id','')}"
 
             st.error(
                 f"**ID {r['id']} | {r['terreno']}** — {r.get('cidade','')} · "
                 f"Executivo: {r.get('analista','')} · {dias_fi}d nesta fase\n\n"
                 f"{faltando_txt}\n\n"
-                f"[🔗 Abrir no Pipefy]({pipefy_url})"
+                f"{poligono_txt}  {('· ' + matricula_txt) if matricula_txt else ''}\n\n"
+                f"[🔗 Abrir no Pipefy]({pip_url})"
             )
             alertas = True
 
