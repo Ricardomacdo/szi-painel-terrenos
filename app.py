@@ -1408,10 +1408,14 @@ with tab_ficha:
             # ── ANÁLISE IA DO TERRENO ──────────────────────────────────────
             st.markdown("---")
             st.subheader("🤖 Análise IA")
-            if st.button("Analisar este terreno com IA", key="btn_analise_terreno"):
-                try:
-                    from ai_client import ask_about_terreno
-                    info = f"""Terreno: {row.get('terreno','—')} (ID: {row.get('id','—')})
+
+            col_btn1, col_btn2 = st.columns(2)
+
+            with col_btn1:
+                if st.button("Analisar este terreno com IA", key="btn_analise_terreno"):
+                    try:
+                        from ai_client import ask_about_terreno
+                        info = f"""Terreno: {row.get('terreno','—')} (ID: {row.get('id','—')})
 Localização: {row.get('cidade','—')} · {row.get('microrregiao','—')} · Zoneamento: {row.get('zoneamento','—')}
 Score: {row.get('score','—')} (mínimo: {SCORE_MINIMO}) · Interesse: {row.get('interesse','—')}/5 · Score Micro: {row.get('score_micro','—')}/10
 Área: {row.get('area_m2','—')} m² · Preço: R$ {row.get('preco',0):,.0f} · VGV: R$ {row.get('vgv',0):,.0f}
@@ -1419,11 +1423,45 @@ Cota terreno: R$ {row.get('cota_terreno',0):,.0f} · ROI estimado: {row.get('roi
 Fase atual: {row.get('fase_atual','—')} · Dias na fase: {row.get('dias_na_fase','—')}
 Executivo de Canais: {row.get('analista','—')} · Corretor: {row.get('corretor','—')}
 Matrícula: {'Sim' if row.get('tem_matricula') else 'Não'}"""
-                    with st.spinner("Analisando terreno..."):
-                        analise = ask_about_terreno(info, "Avalie este terreno: vale prosseguir? Quais são os pontos fortes, riscos e próximos passos recomendados?")
-                    st.markdown(analise)
-                except Exception as e:
-                    st.error(f"Configure ANTHROPIC_API_KEY nos secrets do Streamlit Cloud. Erro: {e}")
+                        with st.spinner("Analisando terreno..."):
+                            analise = ask_about_terreno(info, "Avalie este terreno: vale prosseguir? Quais são os pontos fortes, riscos e próximos passos recomendados?")
+                        st.markdown(analise)
+                    except Exception as e:
+                        st.error(f"Configure ANTHROPIC_API_KEY nos secrets do Streamlit Cloud. Erro: {e}")
+
+            with col_btn2:
+                if st.button("📎 Ler documentos do Pipefy", key="btn_ler_docs"):
+                    card_id_ficha = str(row.get("id_do_card", "") or "").strip()
+                    if not card_id_ficha:
+                        st.warning("ID do card Pipefy não disponível para este terreno.")
+                    else:
+                        with st.spinner("Buscando e lendo anexos no Pipefy..."):
+                            try:
+                                from pipefy_client import get_card_attachments_text
+                                from ai_client import ask_claude
+                                texto_docs = get_card_attachments_text(card_id_ficha)
+                                st.markdown(texto_docs)
+
+                                # Se extraiu conteúdo real, passa para IA analisar
+                                if "PDF" in texto_docs or "texto" in texto_docs:
+                                    info_terreno = f"""Terreno: {row.get('terreno','—')} (ID: {row.get('id','—')})
+Localização: {row.get('cidade','—')} · {row.get('microrregiao','—')}
+Score: {row.get('score','—')} · Área: {row.get('area_m2','—')} m² · Preço: R$ {row.get('preco',0):,.0f}
+Fase: {row.get('fase_atual','—')}
+
+DOCUMENTOS ANEXADOS:
+{texto_docs}"""
+                                    st.markdown("---")
+                                    st.markdown("**🤖 Análise IA dos documentos:**")
+                                    with st.spinner("Analisando documentos..."):
+                                        analise_docs = ask_claude(
+                                            f"{info_terreno}\n\nCom base nos documentos acima, o que você observa? "
+                                            f"Há alguma inconsistência entre os dados cadastrados e os documentos? "
+                                            f"Pontos de atenção?"
+                                        )
+                                    st.markdown(analise_docs)
+                            except Exception as e:
+                                st.error(f"Erro ao ler documentos: {e}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ABA 4 — ALERTAS
