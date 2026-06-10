@@ -1409,32 +1409,66 @@ with tab_alertas:
 # AI ASSISTANT — BOTÃO FLUTUANTE
 # ══════════════════════════════════════════════════════════════════════════════
 
-# ── AI ASSISTANT ────────────────────────────────────────────────────────────────
-def render_chat_popup():
-    """Renderiza o popup de chat com Claude."""
-    # Inicializa histórico se não existir
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+# CSS para botão flutuante fixo
+st.markdown("""
+<style>
+.stChatButton {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 9999;
+}
+.stChatButton > button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 50% !important;
+    width: 60px !important;
+    height: 60px !important;
+    font-size: 24px !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+}
+.stChatButton > button:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%) !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
-    # Container do chat
+# Inicializa estado do chat
+if "show_chat" not in st.session_state:
+    st.session_state.show_chat = False
+
+# Botão flutuante usando HTML
+col_btn, col_space = st.columns([1, 20])
+with col_btn:
+    if st.button("💬", key="chat_float_btn", help="Abrir AI Assistant"):
+        st.session_state.show_chat = not st.session_state.show_chat
+
+# Container fixo para o botão (força posição)
+st.markdown('<div class="stChatButton"></div>', unsafe_allow_html=True)
+
+# Mostra/esconde popup
+if st.session_state.show_chat:
     with st.container():
         st.subheader("💬 AI Assistant — Prospecção de Terrenos")
         st.caption("Analise terrenos, gere mensagens para corretores, sugira próximos passos")
 
         # Histórico de mensagens
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = []
+
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
         # Input do usuário
         if prompt := st.chat_input("Ex: Terreno em Jurerê, 5000m², R$8M. Vale prosseguir?"):
-            # Adiciona mensagem do usuário
             st.session_state.chat_history.append({
                 "role": "user",
                 "content": prompt
             })
 
-            # Chama Claude
             try:
                 from ai_client import ask_claude
                 with st.spinner("🤔 Pensando..."):
@@ -1457,17 +1491,3 @@ def render_chat_popup():
         if st.session_state.chat_history and st.button("🗑️ Limpar conversa"):
             st.session_state.chat_history = []
             st.rerun()
-
-# Inicializa estado do chat
-if "show_chat" not in st.session_state:
-    st.session_state.show_chat = False
-
-# Botão flutuante
-col_btn, col_space = st.columns([1, 20])
-with col_btn:
-    if st.button("💬", help="Abrir AI Assistant"):
-        st.session_state.show_chat = not st.session_state.show_chat
-
-# Mostra/esconde popup
-if st.session_state.show_chat:
-    render_chat_popup()
