@@ -695,7 +695,7 @@ def render_card(row):
         """, unsafe_allow_html=True)
     with col_btn:
         if pipefy_url:
-            st.link_button("🔗 Abrir no Pipefy", pipefy_url, use_container_width=True)
+            st.link_button("🔗 Abrir no Pipefy", pipefy_url, width='stretch')
 
     # ── Blocos de destaque: Qualificação · Gate AP · Semáforo ──────────────
     is_qualif  = pd.notna(score_v) and float(score_v) >= SCORE_MINIMO
@@ -941,7 +941,7 @@ with tab_dash:
     qualificados  = int((score_num >= SCORE_MINIMO).sum())
     falta_info    = int((df["fase_atual"] == "Falta Informação").sum())
     backups       = int(((score_num < SCORE_MINIMO) & (df["status"] == "Aberto")).sum())
-    sem_matricula = int((~df["tem_matricula"].fillna(False).astype(bool)).sum()) if "tem_matricula" in df.columns else 0
+    sem_matricula = int((~df["tem_matricula"].fillna(False).astype(bool)).sum()) if "tem_matricula" in df.columns and not df["tem_matricula"].isna().all() else 0
     travados      = int((dias_num >= 15).sum()) if not dias_num.empty else 0
 
     c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
@@ -966,7 +966,7 @@ with tab_dash:
             fig1 = px.bar(fc, x="Fase", y="Qtd", text="Qtd",
                           color_discrete_sequence=["#0ea5e9"])
             fig1.update_layout(xaxis_tickangle=-45, height=400, margin=dict(b=140))
-            st.plotly_chart(fig1, use_container_width=True)
+            st.plotly_chart(fig1, width='stretch')
 
     with col_b:
         st.subheader("🎯 Score — régua ≥ 320")
@@ -979,7 +979,7 @@ with tab_dash:
                            annotation_text=f"Mínimo ({SCORE_MINIMO})",
                            annotation_position="top right")
             fig2.update_layout(height=400)
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width='stretch')
 
     col_c, col_d = st.columns(2)
     with col_c:
@@ -991,7 +991,7 @@ with tab_dash:
             fig3 = px.bar(mc, x="microrregiao", y="Total", color="cidade",
                           text="Total", barmode="stack")
             fig3.update_layout(xaxis_tickangle=-45, height=400, margin=dict(b=130))
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width='stretch')
 
     with col_d:
         st.subheader("👤 Executivo de Canais")
@@ -1006,7 +1006,7 @@ with tab_dash:
                           color_discrete_sequence=["#0ea5e9","#10b981"],
                           hover_data={"VGV_M": True, "VGV": False})
             fig4.update_layout(showlegend=False, height=400, xaxis_title="")
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, width='stretch')
 
     st.markdown("---")
     st.subheader("📋 Todos os Terrenos")
@@ -1119,7 +1119,7 @@ with tab_dash:
 
     st.dataframe(
         df_disp,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         column_config={
             "ID": st.column_config.TextColumn("ID"),
@@ -1188,7 +1188,7 @@ with tab_analistas:
             fig_an.update_layout(
                 yaxis={"categoryorder": "array", "categoryarray": FASES_FUNIL[::-1]},
                 margin=dict(l=160))
-            st.plotly_chart(fig_an, use_container_width=True)
+            st.plotly_chart(fig_an, width='stretch')
 
         with col_dir:
             st.markdown("**Todos os Terrenos Indicados** — clique no ID para abrir no Pipefy")
@@ -1231,7 +1231,7 @@ with tab_analistas:
 
             st.dataframe(
                 df_an_disp,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 key=f"sel_{analista}",
                 column_config={
@@ -1322,7 +1322,7 @@ with tab_alertas:
         alertas = True
 
     # Sem Matrícula
-    if "tem_matricula" in df_ativo.columns:
+    if "tem_matricula" in df_ativo.columns and not df_ativo["tem_matricula"].isna().all():
         for _, r in df_ativo[~df_ativo["tem_matricula"].fillna(False).astype(bool)].iterrows():
             st.error(
                 f"**Sem Matrícula — {r['id']} | {r['terreno']}** · "
@@ -1377,4 +1377,4 @@ with tab_alertas:
         st.markdown("---")
         st.subheader("📞 Corretores — Pipedrive")
         st.dataframe(df_pd_raw[["terreno","status_pd","corretor","valor_pd"]].head(50),
-                     use_container_width=True, hide_index=True)
+                     width='stretch', hide_index=True)
