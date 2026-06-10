@@ -1,9 +1,12 @@
 """
-Cliente Claude para o Painel SZI Terrenos.
-Fornece assistente de IA para análise de terrenos.
+Cliente IA para o Painel SZI Terrenos.
+Usa o gateway Seazone (hub.seazone.dev) com modelo minimax-m2.7.
 """
 import anthropic
 from datetime import datetime
+
+ANTHROPIC_BASE_URL = "https://hub.seazone.dev"
+AI_MODEL = "minimax-m2.7"
 
 SYSTEM_PROMPT = """
 Você é assistente do Ricardo, Analista de Prospecção de Terrenos da Seazone Investimentos.
@@ -38,50 +41,64 @@ IDIOMA: Português brasileiro, direto e prático.
 """
 
 def get_client():
-    """Retorna cliente Anthropic configurado."""
-    import streamlit as st
-    api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    """Retorna cliente configurado para o gateway Seazone."""
+    import os, httpx
+    # 1. Streamlit secrets
+    try:
+        import streamlit as st
+        api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+        base_url = st.secrets.get("ANTHROPIC_BASE_URL", ANTHROPIC_BASE_URL)
+    except Exception:
+        api_key = ""
+        base_url = ANTHROPIC_BASE_URL
+    # 2. Variável de ambiente
+    if not api_key:
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY não configurado nos secrets")
-    return anthropic.Anthropic(api_key=api_key)
+    # SSL desativado (gateway Seazone usa certificado auto-assinado)
+    http_client = httpx.Client(verify=False)
+    return anthropic.Anthropic(api_key=api_key, base_url=base_url, http_client=http_client)
 
 
 def ask_claude(message: str, history: list = None) -> str:
     """
-    Envia mensagem para Claude e retorna resposta.
+    Envia mensagem para a IA e retorna resposta.
 
     Args:
         message: Mensagem do usuário
         history: Lista de mensagens anteriores [{"role": "user"/"assistant", "content": "..."}]
 
     Returns:
-        Resposta do Claude como string
+        Resposta como string
     """
     client = get_client()
 
-    # Monta lista de mensagens
     messages = history.copy() if history else []
     messages.append({"role": "user", "content": message})
 
     response = client.messages.create(
-        model="claude-sonnet-4-5",
+        model=AI_MODEL,
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         messages=messages
     )
 
-    return response.content[0].text
+    if response.content:
+        return response.content[0].text
+    return "Sem resposta do modelo."
 
 
 def ask_about_terreno(terreno_info: str, pergunta: str = None) -> str:
     """
     Analisa um terreno específico com contexto.
+
     Args:
         terreno_info: Descrição do terreno (localização, área, preço)
         pergunta: Pergunta específica (opcional)
 
     Returns:
-        Análise do Claude
+        Análise como string
     """
     prompt = f"""Analise este terreno:
 
