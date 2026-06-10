@@ -1406,88 +1406,46 @@ with tab_alertas:
                      width='stretch', hide_index=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# AI ASSISTANT — BOTÃO FLUTUANTE
+# AI ASSISTANT — CHAT
 # ══════════════════════════════════════════════════════════════════════════════
 
-# CSS para botão flutuante fixo
-st.markdown("""
-<style>
-.stChatButton {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    z-index: 9999;
-}
-.stChatButton > button {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 50% !important;
-    width: 60px !important;
-    height: 60px !important;
-    font-size: 24px !important;
-    cursor: pointer !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
-}
-.stChatButton > button:hover {
-    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%) !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Inicializa estado do chat
+# Inicializa estado
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 if "show_chat" not in st.session_state:
     st.session_state.show_chat = False
 
-# Botão flutuante usando HTML
-col_btn, col_space = st.columns([1, 20])
-with col_btn:
-    if st.button("💬", key="chat_float_btn", help="Abrir AI Assistant"):
-        st.session_state.show_chat = not st.session_state.show_chat
+# Botão para abrir chat
+if st.button("💬 AI Assistant", key="btn_chat", use_container_width=False):
+    st.session_state.show_chat = not st.session_state.show_chat
 
-# Container fixo para o botão (força posição)
-st.markdown('<div class="stChatButton"></div>', unsafe_allow_html=True)
-
-# Mostra/esconde popup
+# Chat popup
 if st.session_state.show_chat:
-    with st.container():
-        st.subheader("💬 AI Assistant — Prospecção de Terrenos")
-        st.caption("Analise terrenos, gere mensagens para corretores, sugira próximos passos")
+    st.markdown("---")
+    st.subheader("💬 AI Assistant — Prospecção de Terrenos")
+    st.caption("Analise terrenos, gere mensagens para corretores, sugira próximos passos")
 
-        # Histórico de mensagens
-        if "chat_history" not in st.session_state:
-            st.session_state.chat_history = []
+    # Histórico
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-        for msg in st.session_state.chat_history:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
+    # Input
+    if prompt := st.chat_input("Digite sua pergunta..."):
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
 
-        # Input do usuário
-        if prompt := st.chat_input("Ex: Terreno em Jurerê, 5000m², R$8M. Vale prosseguir?"):
-            st.session_state.chat_history.append({
-                "role": "user",
-                "content": prompt
-            })
+        try:
+            from ai_client import ask_claude
+            with st.spinner("Pensando..."):
+                response = ask_claude(prompt, st.session_state.chat_history[:-1])
+            st.session_state.chat_history.append({"role": "assistant", "content": response})
+        except Exception as e:
+            st.error(f"Erro: {e}")
+            st.session_state.chat_history.append({"role": "assistant", "content": "Erro ao conectar. Tente novamente."})
 
-            try:
-                from ai_client import ask_claude
-                with st.spinner("🤔 Pensando..."):
-                    response = ask_claude(prompt, st.session_state.chat_history[:-1])
+        st.rerun()
 
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": response
-                })
-            except Exception as e:
-                st.error(f"Erro ao chamar Claude: {e}")
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": "Desculpe, houve um erro. Tente novamente."
-                })
-
-            st.rerun()
-
-        # Botão para limpar histórico
-        if st.session_state.chat_history and st.button("🗑️ Limpar conversa"):
-            st.session_state.chat_history = []
-            st.rerun()
+    # Limpar
+    if st.session_state.chat_history and st.button("🗑️ Limpar"):
+        st.session_state.chat_history = []
+        st.rerun()
