@@ -979,6 +979,30 @@ with tab_dash:
     c6.metric("Sem Matrícula",             sem_matricula, delta_color="inverse")
     c7.metric("🔴 Travados (≥15d)",        travados,      delta_color="inverse")
 
+    # ── INSIGHTS DE IA ────────────────────────────────────────────────────────
+    with st.expander("🤖 Análise IA do Funil", expanded=True):
+        if st.button("Gerar análise", key="btn_insights"):
+            try:
+                from ai_client import ask_claude
+                travados_nomes = df[dias_num >= 15][["id","terreno","fase_atual","analista"]].to_dict("records") if not dias_num.empty else []
+                falta_info_nomes = df[df["fase_atual"] == "Falta Informação"][["id","terreno","analista"]].to_dict("records")
+                top_vgv = df.nlargest(5, "vgv")[["id","terreno","cidade","vgv","score","fase_atual"]].to_dict("records")
+                contexto = f"""Estado atual do funil SZI Terrenos:
+- Total no funil: {total} terrenos
+- VGV potencial: R$ {vgv_total/1e6:.1f}M
+- Qualificados (score ≥{SCORE_MINIMO}): {qualificados}
+- Travados (≥15 dias): {travados} terrenos → {travados_nomes}
+- Falta Informação: {falta_info} terrenos → {falta_info_nomes}
+- Backup (abaixo da régua): {backups}
+- Top 5 por VGV: {top_vgv}
+
+Com base nesses dados, faça uma análise objetiva: quais são os 3 pontos de atenção mais urgentes? Quais terrenos merecem ação imediata? Qual a saúde geral do funil?"""
+                with st.spinner("Analisando funil..."):
+                    analise = ask_claude(contexto)
+                st.markdown(analise)
+            except Exception as e:
+                st.error(f"Configure ANTHROPIC_API_KEY nos secrets do Streamlit Cloud. Erro: {e}")
+
     st.markdown("---")
 
     col_a, col_b = st.columns(2)
@@ -1304,6 +1328,26 @@ with tab_ficha:
             st.markdown("---")
             st.caption(f"Entrada: {pd.to_datetime(row.get('data_entrada')).strftime('%d/%m/%Y') if pd.notna(row.get('data_entrada')) else '—'}")
 
+            # ── ANÁLISE IA DO TERRENO ──────────────────────────────────────
+            st.markdown("---")
+            st.subheader("🤖 Análise IA")
+            if st.button("Analisar este terreno com IA", key="btn_analise_terreno"):
+                try:
+                    from ai_client import ask_about_terreno
+                    info = f"""Terreno: {row.get('terreno','—')} (ID: {row.get('id','—')})
+Localização: {row.get('cidade','—')} · {row.get('microrregiao','—')} · Zoneamento: {row.get('zoneamento','—')}
+Score: {row.get('score','—')} (mínimo: {SCORE_MINIMO}) · Interesse: {row.get('interesse','—')}/5 · Score Micro: {row.get('score_micro','—')}/10
+Área: {row.get('area_m2','—')} m² · Preço: R$ {row.get('preco',0):,.0f} · VGV: R$ {row.get('vgv',0):,.0f}
+Cota terreno: R$ {row.get('cota_terreno',0):,.0f} · ROI estimado: {row.get('roi_est','—')}% a.a.
+Fase atual: {row.get('fase_atual','—')} · Dias na fase: {row.get('dias_na_fase','—')}
+Executivo de Canais: {row.get('analista','—')} · Corretor: {row.get('corretor','—')}
+Matrícula: {'Sim' if row.get('tem_matricula') else 'Não'}"""
+                    with st.spinner("Analisando terreno..."):
+                        analise = ask_about_terreno(info, "Avalie este terreno: vale prosseguir? Quais são os pontos fortes, riscos e próximos passos recomendados?")
+                    st.markdown(analise)
+                except Exception as e:
+                    st.error(f"Configure ANTHROPIC_API_KEY nos secrets do Streamlit Cloud. Erro: {e}")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ABA 4 — ALERTAS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1436,8 +1480,16 @@ if st.session_state.show_chat:
 
         try:
             from ai_client import ask_claude
+            dias_chat = pd.to_numeric(df_raw.get("dias_na_fase", pd.Series(dtype=float)), errors="coerce") if "dias_na_fase" in df_raw.columns else pd.Series(dtype=float)
+            score_chat = pd.to_numeric(df_raw["score"], errors="coerce")
+            contexto_funil = f"""[CONTEXTO DO FUNIL ATUAL — {datetime.now().strftime('%d/%m/%Y %H:%M')}]
+Total: {len(df_raw)} terrenos | VGV: R$ {pd.to_numeric(df_raw['vgv'], errors='coerce').sum()/1e6:.1f}M
+Qualificados (≥{SCORE_MINIMO}): {int((score_chat >= SCORE_MINIMO).sum())} | Travados (≥15d): {int((dias_chat >= 15).sum())}
+Fases: {df_raw['fase_atual'].value_counts().to_dict()}
+"""
+            prompt_com_contexto = contexto_funil + "\n" + prompt
             with st.spinner("Pensando..."):
-                response = ask_claude(prompt, st.session_state.chat_history[:-1])
+                response = ask_claude(prompt_com_contexto, st.session_state.chat_history[:-1])
             st.session_state.chat_history.append({"role": "assistant", "content": response})
         except Exception as e:
             st.error(f"Erro: {e}")
