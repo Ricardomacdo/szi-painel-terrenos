@@ -998,8 +998,6 @@ with tab_dash:
                     "preco":              "Valor/Preço",
                     "area_m2":            "Área (m²)",
                     "dimensao_terreno":   "Dimensões",
-                    "id_zoneamento":      "Zoneamento",
-                    "contato_parceiro":   "Contato do parceiro",
                     "pasta_documentos":   "Pasta de documentos",
                     "triagem_inicial":    "Triagem inicial",
                 }
