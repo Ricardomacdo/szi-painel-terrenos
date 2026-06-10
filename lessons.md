@@ -174,6 +174,41 @@ Não usar `claude-sonnet-*` — retorna 401.
 Se `max_tokens < 30`, o modelo pode retornar `content: []`.
 Usar mínimo `max_tokens=100` para garantir resposta.
 
+## Leitura de Anexos Pipefy
+
+### pdfplumber para extração de texto de PDFs
+```python
+import pdfplumber, io
+with pdfplumber.open(io.BytesIO(content)) as pdf:
+    texto = "\n".join(p.extract_text() for p in pdf.pages if p.extract_text())
+```
+Adicionado `pdfplumber>=0.10.0` no requirements.txt.
+
+### Download de attachment — tentar sem auth primeiro (S3 pre-signed URL)
+URLs de attachment do Pipefy são geralmente pre-signed do S3 — acessíveis sem Bearer token.
+Só usar auth como fallback se o primeiro download falhar.
+
+### Imagens não têm extração de texto
+JPG/PNG/WEBP → apenas exibe o nome do arquivo. OCR exigiria Google Vision API.
+
+### Filtro de analista aplicado globalmente após carregar df_raw
+```python
+df_raw = df_raw[df_raw["analista"] == "Farmer"].copy()
+```
+Garante que TODO o app (dashboard, alertas, ficha, IA) mostra apenas terrenos do Farmer (Ricardo).
+
+### Campos verificados na mensagem ao corretor (Falta Informação)
+Somente: Valor/Preço, Área (m²), Dimensões, Pasta de documentos, Triagem inicial.
+Zoneamento e Contato do proprietário foram removidos a pedido do usuário (10/06/2026).
+
+### Plano do Dia IA — contexto enviado
+O botão "Gerar análise" envia para a IA:
+- Travados ≥15 dias com dias_na_fase
+- Falta Informação com campos específicos faltantes por terreno
+- Oportunidades (score ≥320 parados na triagem)
+- Top 5 por VGV
+A IA retorna: ações urgentes, mensagens WhatsApp prontas, oportunidades e saúde do funil.
+
 ## Erros comuns
 
 | Erro | Causa | Solução |
@@ -184,3 +219,5 @@ Usar mínimo `max_tokens=100` para garantir resposta.
 | Mojibake nos textos | requests decodificando como Latin-1 | Usar `r.content.decode("utf-8")` |
 | Polígono "não verificado" | `PIPEFY_TOKEN` ausente nos Secrets | Adicionar `PIPEFY_TOKEN` no Streamlit Cloud |
 | IA retorna 401 | Modelo errado ou chave inválida | Usar `minimax-m2.7` e chave `sk-WFLxVCpL5vJZCbQgHKeB7Q` |
+| "Invalid format: please enter valid TOML" | Token colado com quebra de linha ou duplicado | Apagar tudo e colar os 4 secrets de uma vez em formato flat |
+| Documentos não carregam (Ler docs) | `PIPEFY_TOKEN` ausente ou URL expirada | Verificar token; URLs S3 têm validade |

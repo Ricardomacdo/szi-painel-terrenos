@@ -4,7 +4,7 @@ Registro de decisões, estado atual e histórico do projeto.
 
 ---
 
-## Estado atual (10/06/2026 — atualizado)
+## Estado atual (10/06/2026 — atualizado em 10/06/2026)
 
 ### Deploy
 - **URL pública:** https://szi-painel-terrenos-azp998z4x25rv9hcmoqm89.streamlit.app
@@ -32,24 +32,29 @@ Registro de decisões, estado atual e histórico do projeto.
 
 ## Funcionalidades implementadas
 
-### Painel (4 abas)
+### Painel (4 abas) — apenas terrenos Farmer (Ricardo Macedo)
 1. **Dashboard** — KPIs, funil 22 etapas, score, mapa cidade/microrregião, tabela filtrada com link Pipefy
-2. **Executivo de Canais** — breakdown Farmer (Ricardo) / Key Account (Gabriel)
-3. **Ficha do Terreno** — busca por ID ou nome, card completo com AP/EM/Private/EP
-4. **Alertas** — travados ≥15d, falta info, sem matrícula, score baixo, cota acima do cap
+2. **Executivo de Canais** — visão Farmer com análise IA por analista
+3. **Ficha do Terreno** — busca por ID ou nome, card completo + leitura de anexos Pipefy + análise IA
+4. **Alertas** — travados ≥15d, falta info (campos específicos), sem matrícula, score baixo, cota acima do cap
 
 ### IA — gateway hub.seazone.dev
 - Modelo: `minimax-m2.7` | Chave: `sk-WFLxVCpL5vJZCbQgHKeB7Q`
 - SSL desativado (`httpx.Client(verify=False)`)
-- **Análise IA do Funil** — botão no Dashboard com estado real (travados, VGV, fases)
+- **Plano do Dia** — ações urgentes + mensagens WhatsApp para corretor + oportunidades + saúde do funil
 - **Análise IA por Executivo** — botão na aba Executivo de Canais para cada analista
 - **Análise IA do Terreno** — botão na Ficha com dados reais do card
+- **📎 Ler documentos do Pipefy** — baixa e extrai texto de PDFs/anexos; IA analisa inconsistências
 - **Chat com contexto** — inclui resumo do funil atual em cada mensagem
 
 ### Verificação de Polígono (Pipefy)
 - `pipefy_client.py` busca o campo `Poligono` (attachment) via GraphQL
 - Mostra ✅/❌ com link direto para o arquivo no alerta de Falta Informação
 - Campo `Matrícula` é select (Sim/Não/Não sabemos) — desconsiderado (não armazena metragem)
+
+### Campos verificados na mensagem ao corretor (Falta Informação)
+- Valor/Preço, Área (m²), Dimensões, Pasta de documentos, Triagem inicial
+- **Removidos:** Zoneamento e Contato do proprietário (10/06/2026)
 
 ---
 
@@ -67,6 +72,10 @@ Registro de decisões, estado atual e histórico do projeto.
 | 10/06/2026 | Gateway hub.seazone.dev + minimax-m2.7 | Seazone tem proxy interno para LLMs; chave Anthropic direta não funciona |
 | 10/06/2026 | Verificação de polígono via Pipefy API | Campo Polígono é attachment no Pipefy (não está no Nekt); busca direta via GraphQL |
 | 10/06/2026 | Matrícula desconsiderada na análise | Campo é select (Sim/Não), não armazena metragem; documento fica no Google Drive |
+| 10/06/2026 | Filtrar apenas terrenos Farmer | App é uso exclusivo do Ricardo (Farmer); Key Account removido da visão |
+| 10/06/2026 | Plano do Dia IA substituiu análise genérica | IA agora retorna ações urgentes, mensagens prontas para corretor e oportunidades do dia |
+| 10/06/2026 | Leitura de anexos Pipefy via pdfplumber | Botão "Ler documentos" baixa PDFs/anexos do card e extrai texto para análise IA |
+| 10/06/2026 | Remover Zoneamento e Contato do proprietário da mensagem ao corretor | Esses campos não são responsabilidade do corretor informar |
 
 ---
 
@@ -110,3 +119,5 @@ Formato: `https://app.pipefy.com/pipes/304543320#cards/{id_do_card}`
 | plotly | 6.7.0 |
 | requests | 2.34.2 |
 | anthropic | ≥ 0.20.0 |
+| httpx | ≥ 0.24.0 |
+| pdfplumber | ≥ 0.10.0 |

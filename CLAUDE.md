@@ -95,22 +95,26 @@ Ou usar o script `rodar.bat` no Windows.
 - Métricas: total no funil, VGV, qualificados, falta informação, backup, sem matrícula, travados
 - Gráficos: funil, score, cidade/microrregião, executivo de canais
 - Tabela com filtros e link para o Pipefy
+- **🤖 Plano do Dia IA** — análise com ações urgentes, mensagens prontas para corretor, oportunidades do dia e saúde do funil
 
 ### 2. Executivo de Canais (`tab_analistas`)
-- Visão individual por analista (Ricardo, Gabriel)
+- Visão individual por analista (Ricardo — Farmer apenas)
 - Distribuição por fase + tabela de terrenos
+- Botão de análise IA por analista
 
 ### 3. Ficha do Terreno (`tab_ficha`)
 - Busca por ID ou nome
 - Card detalhado com localização, scores, financeiro, documentos, AP, EM, Private, EP
+- **Analisar com IA** — avalia o terreno com dados cadastrados
+- **📎 Ler documentos do Pipefy** — baixa e extrai texto de todos os anexos do card; IA analisa inconsistências
 
 ### 4. Alertas (`tab_alertas`)
 - Terrenos travados ≥15 dias
-- Falta Informação
+- Falta Informação (com campos específicos faltantes por card)
 - Sem matrícula
 - Score abaixo da régua (320)
 - Cota acima do cap
-- Documentos faltando/divergentes
+- Verificação de Polígono (✅/❌) direto do Pipefy
 
 ## Conceitos importantes
 
@@ -170,11 +174,13 @@ O `fetch_nekt_data()` normaliza os dados do Nekt para colunas do painel:
 ### Secrets necessários no Streamlit Cloud
 
 ```toml
-NEKT_JWT_TOKEN = "eyJ..."                    # JWT Nekt — válido até ~maio 2027
-ANTHROPIC_API_KEY = "sk-WFLxVCpL5vJZCbQgHKeB7Q"  # Gateway Seazone (hub.seazone.dev)
-ANTHROPIC_BASE_URL = "https://hub.seazone.dev"    # Gateway IA interno Seazone
-PIPEFY_TOKEN = "eyJhbGciOiJIUzUxMiJ9..."    # API Pipefy — tool@seazone.com.br
+NEKT_JWT_TOKEN = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."   # JWT Nekt — válido até ~maio 2027
+ANTHROPIC_API_KEY = "sk-WFLxVCpL5vJZCbQgHKeB7Q"              # Gateway Seazone (hub.seazone.dev)
+ANTHROPIC_BASE_URL = "https://hub.seazone.dev"                # Gateway IA interno Seazone
+PIPEFY_TOKEN = "eyJhbGciOiJIUzUxMiJ9..."                     # API Pipefy — tool@seazone.com.br
 ```
+
+> Tokens completos salvos em `.nekt_secrets` na máquina local (não commitado).
 
 ## Troubleshooting
 
