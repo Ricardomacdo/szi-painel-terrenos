@@ -128,6 +128,52 @@ except Exception as e:
 
 ---
 
+## Pipefy GraphQL
+
+### Token via JWT Bearer
+```python
+headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+```
+
+### Campo Polígono é attachment — valor é JSON array de URLs
+```python
+urls = json.loads(val)  # ["https://app.pipefy.com/storage/..."]
+poligono_ok = bool(urls)
+```
+
+### Campo Matrícula é select (Sim / Não / Não sabemos) — não é anexo
+Não armazena metragem. Para comparar área da matrícula com área cadastrada
+seria necessário Google Drive API ou campo manual no Pipefy.
+
+### Consulta por card individual (não há batch por IDs)
+```python
+query = f'{{ card(id: {card_id}) {{ fields {{ name value field {{ type }} }} }} }}'
+```
+
+### SSL desativado também no Pipefy (mesmo problema do Nekt)
+```python
+requests.post(..., verify=False)
+```
+
+## IA — Gateway Seazone
+
+### Endpoint correto: hub.seazone.dev (não api.anthropic.com)
+```python
+client = anthropic.Anthropic(
+    api_key="sk-...",
+    base_url="https://hub.seazone.dev",
+    http_client=httpx.Client(verify=False)  # SSL auto-assinado
+)
+```
+
+### Modelo disponível: minimax-m2.7
+Chave `sk-WFLxVCpL5vJZCbQgHKeB7Q` só acessa `minimax-m2.7`.
+Não usar `claude-sonnet-*` — retorna 401.
+
+### Conteúdo vazio com max_tokens muito baixo
+Se `max_tokens < 30`, o modelo pode retornar `content: []`.
+Usar mínimo `max_tokens=100` para garantir resposta.
+
 ## Erros comuns
 
 | Erro | Causa | Solução |
@@ -136,3 +182,5 @@ except Exception as e:
 | Dados vazios / modo demo | JWT expirado ou tabela Nekt inacessível | Verificar JWT nos Secrets; testar query direto no Nekt |
 | Botões de IA mostram erro | `ANTHROPIC_API_KEY` não configurado | Adicionar nos Secrets do Streamlit Cloud |
 | Mojibake nos textos | requests decodificando como Latin-1 | Usar `r.content.decode("utf-8")` |
+| Polígono "não verificado" | `PIPEFY_TOKEN` ausente nos Secrets | Adicionar `PIPEFY_TOKEN` no Streamlit Cloud |
+| IA retorna 401 | Modelo errado ou chave inválida | Usar `minimax-m2.7` e chave `sk-WFLxVCpL5vJZCbQgHKeB7Q` |

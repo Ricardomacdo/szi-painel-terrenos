@@ -14,11 +14,13 @@ Painel de BI que exibe todos os cards do Pipefy (funil SZI Terrenos, 22 etapas) 
 
 ```
 szi-painel-terrenos/
-├── app.py              # Streamlit app (4 abas)
+├── app.py              # Streamlit app (4 abas + IA)
 ├── nekt_client.py      # Cliente MCP para Nekt (data lake)
+├── ai_client.py        # Cliente IA — gateway hub.seazone.dev (minimax-m2.7)
+├── pipefy_client.py    # Cliente Pipefy GraphQL — verificação de documentos
 ├── nekt_auth.py        # OAuth PKCE para autenticar no Nekt
 ├── requirements.txt    # Dependências Python
-├── .nekt_secrets       # JWT token (não commitear)
+├── .nekt_secrets       # Tokens locais (não commitear)
 └── .streamlit/
     └── secrets.toml   # Configurações Streamlit Cloud
 ```
@@ -28,8 +30,9 @@ szi-painel-terrenos/
 | Fonte | O que fornece | API/Endpoint |
 |-------|---------------|--------------|
 | **Nekt MCP** | Dados reais dos cards Pipefy | `https://nekt-app-mcp.seazone.com.br/mcp` |
-| **Pipefy** | Cards do funil (backup direto) | `https://app.pipefy.com/queries` |
+| **Pipefy GraphQL** | Documentos dos cards (Polígono) | `https://app.pipefy.com/queries` |
 | **Pipedrive** | Corretores e deals | `https://seazone-fd92b9.pipedrive.com/api/v1/` |
+| **IA (minimax-m2.7)** | Análise de funil e terrenos | `https://hub.seazone.dev` |
 
 ### Nekt MCP Protocol
 
@@ -153,7 +156,7 @@ O `fetch_nekt_data()` normaliza os dados do Nekt para colunas do painel:
 
 1. Push para GitHub (repo `szi-painel-terrenos`)
 2. Conectar no [Streamlit Cloud](https://streamlit.io/cloud)
-3. Adicionar secrets: `NEKT_JWT_TOKEN`
+3. Adicionar secrets: `NEKT_JWT_TOKEN`, `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `PIPEFY_TOKEN`
 4. Deploy automático em push para main
 
 ### URL pública (produção)
@@ -167,8 +170,10 @@ O `fetch_nekt_data()` normaliza os dados do Nekt para colunas do painel:
 ### Secrets necessários no Streamlit Cloud
 
 ```toml
-NEKT_JWT_TOKEN = "eyJ..."       # JWT Nekt — válido até ~maio 2027
-ANTHROPIC_API_KEY = "sk-ant-..." # Necessário para as funcionalidades de IA
+NEKT_JWT_TOKEN = "eyJ..."                    # JWT Nekt — válido até ~maio 2027
+ANTHROPIC_API_KEY = "sk-WFLxVCpL5vJZCbQgHKeB7Q"  # Gateway Seazone (hub.seazone.dev)
+ANTHROPIC_BASE_URL = "https://hub.seazone.dev"    # Gateway IA interno Seazone
+PIPEFY_TOKEN = "eyJhbGciOiJIUzUxMiJ9..."    # API Pipefy — tool@seazone.com.br
 ```
 
 ## Troubleshooting

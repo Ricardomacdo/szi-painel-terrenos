@@ -4,7 +4,7 @@ Registro de decisões, estado atual e histórico do projeto.
 
 ---
 
-## Estado atual (10/06/2026)
+## Estado atual (10/06/2026 — atualizado)
 
 ### Deploy
 - **URL pública:** https://szi-painel-terrenos-azp998z4x25rv9hcmoqm89.streamlit.app
@@ -24,7 +24,9 @@ Registro de decisões, estado atual e histórico do projeto.
 
 ### Secrets configurados no Streamlit Cloud
 - `NEKT_JWT_TOKEN` — JWT Nekt, válido até ~maio 2027 ✅
-- `ANTHROPIC_API_KEY` — necessário para funcionalidades de IA ⚠️ (ainda não configurado)
+- `ANTHROPIC_API_KEY = sk-WFLxVCpL5vJZCbQgHKeB7Q` — gateway hub.seazone.dev ✅
+- `ANTHROPIC_BASE_URL = https://hub.seazone.dev` — gateway IA interno Seazone ✅
+- `PIPEFY_TOKEN` — API Pipefy (tool@seazone.com.br) ✅ (adicionar nos Secrets)
 
 ---
 
@@ -36,10 +38,18 @@ Registro de decisões, estado atual e histórico do projeto.
 3. **Ficha do Terreno** — busca por ID ou nome, card completo com AP/EM/Private/EP
 4. **Alertas** — travados ≥15d, falta info, sem matrícula, score baixo, cota acima do cap
 
-### IA (requer ANTHROPIC_API_KEY)
-- **Análise IA do Funil** — botão no Dashboard que envia estado real do funil ao Claude e retorna pontos de atenção urgentes
-- **Análise IA do Terreno** — botão na Ficha que avalia um terreno específico (vale prosseguir? riscos? próximos passos?)
-- **Chat com contexto** — chat assistente que inclui resumo do funil atual em cada mensagem
+### IA — gateway hub.seazone.dev
+- Modelo: `minimax-m2.7` | Chave: `sk-WFLxVCpL5vJZCbQgHKeB7Q`
+- SSL desativado (`httpx.Client(verify=False)`)
+- **Análise IA do Funil** — botão no Dashboard com estado real (travados, VGV, fases)
+- **Análise IA por Executivo** — botão na aba Executivo de Canais para cada analista
+- **Análise IA do Terreno** — botão na Ficha com dados reais do card
+- **Chat com contexto** — inclui resumo do funil atual em cada mensagem
+
+### Verificação de Polígono (Pipefy)
+- `pipefy_client.py` busca o campo `Poligono` (attachment) via GraphQL
+- Mostra ✅/❌ com link direto para o arquivo no alerta de Falta Informação
+- Campo `Matrícula` é select (Sim/Não/Não sabemos) — desconsiderado (não armazena metragem)
 
 ---
 
@@ -54,6 +64,9 @@ Registro de decisões, estado atual e histórico do projeto.
 | 10/06/2026 | ttl=0 no cache | Usuário quer dados atualizados a cada abertura |
 | 10/06/2026 | Remover lessons.md e memory.md do .gitignore | Esses arquivos são documentação do projeto, não devem ir para o repo como arquivos internos ocultos |
 | 10/06/2026 | Adicionar funcionalidades de IA | Feedback: painel precisava de IA fazendo algo além de listar cards |
+| 10/06/2026 | Gateway hub.seazone.dev + minimax-m2.7 | Seazone tem proxy interno para LLMs; chave Anthropic direta não funciona |
+| 10/06/2026 | Verificação de polígono via Pipefy API | Campo Polígono é attachment no Pipefy (não está no Nekt); busca direta via GraphQL |
+| 10/06/2026 | Matrícula desconsiderada na análise | Campo é select (Sim/Não), não armazena metragem; documento fica no Google Drive |
 
 ---
 
