@@ -13,6 +13,7 @@ st.set_page_config(
     page_title="SZI | Monitoramento de Terrenos",
     layout="wide",
     page_icon="🏢",
+)
 
 # ── CSS BOTÃO FLUTUANTE ────────────────────────────────────────────────────────
 st.markdown("""
@@ -39,7 +40,6 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-)
 
 PIPEFY_PIPE_ID   = "304543320"
 PIPEDRIVE_DOMAIN = "seazone-fd92b9"
