@@ -15,5 +15,3 @@ venv/
 # Streamlit local
 .streamlit/secrets.toml
 
-lessons.md
-memory.md

@@ -156,9 +156,20 @@ O `fetch_nekt_data()` normaliza os dados do Nekt para colunas do painel:
 3. Adicionar secrets: `NEKT_JWT_TOKEN`
 4. Deploy automático em push para main
 
-### URL esperada
+### URL pública (produção)
 
-`https://szi-painel-terrenos.streamlit.app`
+`https://szi-painel-terrenos-azp998z4x25rv9hcmoqm89.streamlit.app`
+
+### Repositório GitHub
+
+`https://github.com/Ricardomacdo/szi-painel-terrenos` — branch `master`, arquivo `app.py`
+
+### Secrets necessários no Streamlit Cloud
+
+```toml
+NEKT_JWT_TOKEN = "eyJ..."       # JWT Nekt — válido até ~maio 2027
+ANTHROPIC_API_KEY = "sk-ant-..." # Necessário para as funcionalidades de IA
+```
 
 ## Troubleshooting
 
