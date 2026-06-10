@@ -1403,14 +1403,42 @@ with tab_alertas:
             )
             alertas = True
 
-    # Falta Informação
-    for _, r in df_ativo[df_ativo["fase_atual"] == "Falta Informação"].iterrows():
-        st.error(
-            f"**Falta Informação — {r['id']} | {r['terreno']}** · "
-            f"{r.get('cidade','')} / {r.get('microrregiao','')} · "
-            f"Executivo de Canais: {r.get('analista','')} · Slack #falta-info-terrenos"
-        )
-        alertas = True
+    # Falta Informação — mostra ID e quais campos estão faltando
+    fi_df = df_ativo[df_ativo["fase_atual"] == "Falta Informação"]
+    if not fi_df.empty:
+        st.markdown("### ℹ️ Falta Informação")
+        for _, r in fi_df.iterrows():
+            faltando = []
+            # Verifica campo a campo o que está vazio ou inválido
+            valor_raw = str(r.get("valor","") or "").strip()
+            if not valor_raw or valor_raw in ("0,00","0.00","0",""):
+                faltando.append("Valor/Preço")
+            area_raw = r.get("area_m2") or r.get("area_total_m_")
+            if not area_raw or str(area_raw).strip() in ("","0","0.0"):
+                faltando.append("Área")
+            dim_raw = str(r.get("dimensao_do_terreno","") or "").strip()
+            if not dim_raw or dim_raw.lower() in ("","xx","x","—"):
+                faltando.append("Dimensões do terreno")
+            if not str(r.get("id_zoneamento","") or "").strip():
+                faltando.append("Zoneamento")
+            if not str(r.get("contato_do_parceiro","") or "").strip():
+                faltando.append("Contato do parceiro")
+            if not str(r.get("link_da_pasta_do_terreno","") or "").strip():
+                faltando.append("Pasta de documentos")
+            if not str(r.get("triagem_inicial","") or "").strip():
+                faltando.append("Triagem inicial")
+
+            faltando_txt = " · ".join(f"❌ {f}" for f in faltando) if faltando else "✅ Campos básicos preenchidos"
+            dias_fi = int(r.get("dias_na_fase", 0) or 0)
+            pipefy_url = f"https://app.pipefy.com/pipes/{PIPEFY_PIPE_ID}#cards/{r.get('id_do_card', r.get('id',''))}"
+
+            st.error(
+                f"**ID {r['id']} | {r['terreno']}** — {r.get('cidade','')} · "
+                f"Executivo: {r.get('analista','')} · {dias_fi}d nesta fase\n\n"
+                f"{faltando_txt}\n\n"
+                f"[🔗 Abrir no Pipefy]({pipefy_url})"
+            )
+            alertas = True
 
     # Sem Matrícula
     if "tem_matricula" in df_ativo.columns and not df_ativo["tem_matricula"].isna().all():
