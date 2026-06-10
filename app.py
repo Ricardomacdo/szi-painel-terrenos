@@ -13,6 +13,32 @@ st.set_page_config(
     page_title="SZI | Monitoramento de Terrenos",
     layout="wide",
     page_icon="🏢",
+
+# ── CSS BOTÃO FLUTUANTE ────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+.stFloatingChatButton {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 999;
+}
+.css-1vbk1k5 {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.css-1vbk1k5:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+</style>
+""", unsafe_allow_html=True)
 )
 
 PIPEFY_PIPE_ID   = "304543320"
@@ -1378,3 +1404,70 @@ with tab_alertas:
         st.subheader("📞 Corretores — Pipedrive")
         st.dataframe(df_pd_raw[["terreno","status_pd","corretor","valor_pd"]].head(50),
                      width='stretch', hide_index=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AI ASSISTANT — BOTÃO FLUTUANTE
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── AI ASSISTANT ────────────────────────────────────────────────────────────────
+def render_chat_popup():
+    """Renderiza o popup de chat com Claude."""
+    # Inicializa histórico se não existir
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    # Container do chat
+    with st.container():
+        st.subheader("💬 AI Assistant — Prospecção de Terrenos")
+        st.caption("Analise terrenos, gere mensagens para corretores, sugira próximos passos")
+
+        # Histórico de mensagens
+        for msg in st.session_state.chat_history:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        # Input do usuário
+        if prompt := st.chat_input("Ex: Terreno em Jurerê, 5000m², R$8M. Vale prosseguir?"):
+            # Adiciona mensagem do usuário
+            st.session_state.chat_history.append({
+                "role": "user",
+                "content": prompt
+            })
+
+            # Chama Claude
+            try:
+                from ai_client import ask_claude
+                with st.spinner("🤔 Pensando..."):
+                    response = ask_claude(prompt, st.session_state.chat_history[:-1])
+
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": response
+                })
+            except Exception as e:
+                st.error(f"Erro ao chamar Claude: {e}")
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": "Desculpe, houve um erro. Tente novamente."
+                })
+
+            st.rerun()
+
+        # Botão para limpar histórico
+        if st.session_state.chat_history and st.button("🗑️ Limpar conversa"):
+            st.session_state.chat_history = []
+            st.rerun()
+
+# Inicializa estado do chat
+if "show_chat" not in st.session_state:
+    st.session_state.show_chat = False
+
+# Botão flutuante
+col_btn, col_space = st.columns([1, 20])
+with col_btn:
+    if st.button("💬", help="Abrir AI Assistant"):
+        st.session_state.show_chat = not st.session_state.show_chat
+
+# Mostra/esconde popup
+if st.session_state.show_chat:
+    render_chat_popup()
