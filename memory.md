@@ -1,81 +1,72 @@
 # Memory — SZI Painel Terrenos
-
-Registro de decisões, estado atual e histórico do projeto.
+> Atualizado em 10/06/2026
 
 ---
 
-## Estado atual (10/06/2026 — atualizado em 10/06/2026)
+## Estado atual (10/06/2026)
 
 ### Deploy
 - **URL pública:** https://szi-painel-terrenos-azp998z4x25rv9hcmoqm89.streamlit.app
 - **Repositório:** https://github.com/Ricardomacdo/szi-painel-terrenos
 - **Branch:** `master` · arquivo principal: `app.py`
 - **Plataforma:** Streamlit Community Cloud
-- **Conta:** ricardo.macedo@seazone.com.br / GitHub: ricardomacdo
-- **Status:** Online e funcionando com dados reais do Nekt
-
-### Dados reais confirmados (10/06/2026)
-- 56 terrenos no funil
-- VGV potencial: R$ 993,7M
-- 30 qualificados (score ≥ 320)
-- 3 com Falta de Informação
-- 25 em Backup
-- 0 travados (≥15 dias)
+- **Conta:** ricardo.macedo@seazone.com.br / GitHub: Ricardomacdo
+- **Status:** Online, dados reais do Nekt, IA funcionando
 
 ### Secrets configurados no Streamlit Cloud
 - `NEKT_JWT_TOKEN` — JWT Nekt, válido até ~maio 2027 ✅
-- `ANTHROPIC_API_KEY = sk-WFLxVCpL5vJZCbQgHKeB7Q` — gateway hub.seazone.dev ✅
-- `ANTHROPIC_BASE_URL = https://hub.seazone.dev` — gateway IA interno Seazone ✅
-- `PIPEFY_TOKEN` — API Pipefy (tool@seazone.com.br) ✅ (adicionar nos Secrets)
+- `ANTHROPIC_API_KEY = sk-WFLxVCpL5vJZCbQgHKeB7Q` ✅
+- `ANTHROPIC_BASE_URL = https://hub.seazone.dev` ✅
+- `PIPEFY_TOKEN` — API Pipefy (tool@seazone.com.br) ✅
 
 ---
 
-## Funcionalidades implementadas
+## Funcionalidades implementadas (10/06/2026)
 
-### Painel (4 abas) — apenas terrenos Farmer (Ricardo Macedo)
-1. **Dashboard** — KPIs, funil 22 etapas, score, mapa cidade/microrregião, tabela filtrada com link Pipefy
-2. **Executivo de Canais** — visão Farmer com análise IA por analista
-3. **Ficha do Terreno** — busca por ID ou nome, card completo + leitura de anexos Pipefy + análise IA
-4. **Alertas** — travados ≥15d, falta info (campos específicos), sem matrícula, score baixo, cota acima do cap
+### Painel — apenas terrenos Farmer (Ricardo Macedo)
+Filtro global aplicado logo após carregar df_raw:
+```python
+df_raw = df_raw[df_raw["analista"] == "Farmer"].copy()
+```
 
-### IA — gateway hub.seazone.dev
-- Modelo: `minimax-m2.7` | Chave: `sk-WFLxVCpL5vJZCbQgHKeB7Q`
-- SSL desativado (`httpx.Client(verify=False)`)
-- **Plano do Dia** — ações urgentes + mensagens WhatsApp para corretor + oportunidades + saúde do funil
-- **Análise IA por Executivo** — botão na aba Executivo de Canais para cada analista
-- **Análise IA do Terreno** — botão na Ficha com dados reais do card
-- **📎 Ler documentos do Pipefy** — baixa e extrai texto de PDFs/anexos; IA analisa inconsistências
-- **Chat com contexto** — inclui resumo do funil atual em cada mensagem
+### 4 abas
+1. **Dashboard** — KPIs, funil, score, tabela + **🤖 Plano do Dia IA**
+2. **Executivo de Canais** — visão Farmer + análise IA por analista
+3. **Ficha do Terreno** — card completo + Analisar com IA + 📎 Ler documentos Pipefy
+4. **Alertas** — travados, falta info (campos específicos), score baixo, cota, polígono ✅/❌
 
-### Verificação de Polígono (Pipefy)
-- `pipefy_client.py` busca o campo `Poligono` (attachment) via GraphQL
-- Mostra ✅/❌ com link direto para o arquivo no alerta de Falta Informação
-- Campo `Matrícula` é select (Sim/Não/Não sabemos) — desconsiderado (não armazena metragem)
+### 🤖 Plano do Dia IA (Dashboard)
+Botão "Gerar análise" envia contexto real e retorna:
+- **Ações urgentes** — travados + falta info
+- **Mensagens WhatsApp prontas** — por corretor, campos específicos faltantes
+- **Oportunidades do dia** — score ≥320 parados na triagem
+- **Saúde do funil** — avaliação + recomendação estratégica
 
-### Campos verificados na mensagem ao corretor (Falta Informação)
-- Valor/Preço, Área (m²), Dimensões, Pasta de documentos, Triagem inicial
-- **Removidos:** Zoneamento e Contato do proprietário (10/06/2026)
+### 📎 Ler documentos do Pipefy (Ficha do Terreno)
+- Busca todos os campos tipo `attachment` do card via GraphQL
+- Baixa arquivos (PDFs via pdfplumber, texto, imagens)
+- Extrai texto e passa para IA analisar inconsistências
+
+### Campos verificados na mensagem ao corretor
+✅ Valor/Preço · Área (m²) · Dimensões · Pasta de documentos · Triagem inicial
+❌ Removidos: Zoneamento · Contato do proprietário
 
 ---
 
-## Histórico de decisões
+## Histórico de decisões — 10/06/2026
 
-| Data | Decisão | Motivo |
-|------|---------|--------|
-| 27/05/2026 | Usar Nekt MCP como fonte de dados | Dados do Pipefy já estão na tabela `pipefy_szi_all_cards_transformada_bd_terreno` |
-| 27/05/2026 | JWT Bearer token, não OAuth PKCE | PKCE é necessário para obter o JWT; após obtido, o JWT é suficiente para chamadas SQL |
-| 28/05/2026 | Fallback para modo demo | App não pode quebrar — se Nekt falhar, exibe dados sintéticos |
-| 28/05/2026 | verify=False nos requests | Nekt usa certificado auto-assinado |
-| 10/06/2026 | ttl=0 no cache | Usuário quer dados atualizados a cada abertura |
-| 10/06/2026 | Remover lessons.md e memory.md do .gitignore | Esses arquivos são documentação do projeto, não devem ir para o repo como arquivos internos ocultos |
-| 10/06/2026 | Adicionar funcionalidades de IA | Feedback: painel precisava de IA fazendo algo além de listar cards |
-| 10/06/2026 | Gateway hub.seazone.dev + minimax-m2.7 | Seazone tem proxy interno para LLMs; chave Anthropic direta não funciona |
-| 10/06/2026 | Verificação de polígono via Pipefy API | Campo Polígono é attachment no Pipefy (não está no Nekt); busca direta via GraphQL |
-| 10/06/2026 | Matrícula desconsiderada na análise | Campo é select (Sim/Não), não armazena metragem; documento fica no Google Drive |
-| 10/06/2026 | Filtrar apenas terrenos Farmer | App é uso exclusivo do Ricardo (Farmer); Key Account removido da visão |
-| 10/06/2026 | Plano do Dia IA substituiu análise genérica | IA agora retorna ações urgentes, mensagens prontas para corretor e oportunidades do dia |
-| 10/06/2026 | Leitura de anexos Pipefy via pdfplumber | Botão "Ler documentos" baixa PDFs/anexos do card e extrai texto para análise IA |
-| 10/06/2026 | Remover Zoneamento e Contato do proprietário da mensagem ao corretor | Esses campos não são responsabilidade do corretor informar |
+| Decisão | Motivo |
+|---------|--------|
+| ttl=0 no cache | Dados frescos a cada abertura do app |
+| Gateway hub.seazone.dev + minimax-m2.7 | Chave Anthropic direta não funciona; Seazone tem proxy interno |
+| httpx no requirements.txt | SDK anthropic usa httpx — faltava como dependência |
+| pdfplumber no requirements.txt | Leitura de PDFs nos anexos do Pipefy |
+| Filtrar apenas terrenos Farmer | App é uso exclusivo do Ricardo; Key Account removido |
+| Plano do Dia IA substituiu análise genérica | IA agora retorna ações práticas e mensagens prontas |
+| Leitura de anexos Pipefy | Botão baixa e extrai texto de PDFs/docs do card |
+| Remover Zoneamento e Contato do proprietário | Não são campos de responsabilidade do corretor |
+| Matrícula desconsiderada | Campo é select (Sim/Não), não armazena metragem |
+| Verificação de polígono via Pipefy API | Campo Polígono é attachment no Pipefy, não está no Nekt |
 
 ---
 
@@ -83,8 +74,8 @@ Registro de decisões, estado atual e histórico do projeto.
 
 | Nome no Nekt | Exibido no painel |
 |---|---|
-| Ricardo Macedo | Farmer |
-| Gabriel Carlos Gouvea de Souza | Key Account |
+| Ricardo Macedo | Farmer (único exibido) |
+| Gabriel Carlos Gouvea de Souza | Key Account (removido da visão) |
 | Davi Millan | excluído |
 | Eduardo Farias | excluído |
 
@@ -104,9 +95,9 @@ Saída:    Perdido | Ganho | Excluídos
 
 ## Link para o Pipefy
 
-Formato: `https://app.pipefy.com/pipes/304543320#cards/{id_do_card}`
-- `id` exibido no painel = campo `ids` da tabela Nekt (sequencial)
-- `id_do_card` = campo `id_do_card` da tabela Nekt (ID real do card no Pipefy)
+`https://app.pipefy.com/pipes/304543320#cards/{id_do_card}`
+- `id` exibido no painel = campo `ids` (sequencial)
+- `id_do_card` = campo `id_do_card` da tabela Nekt (ID real no Pipefy)
 
 ---
 
