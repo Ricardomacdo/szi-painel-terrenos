@@ -1886,13 +1886,13 @@ LIMIT 300
             potencial_ativo = len(enviaram) + len(vao)
             pct = int(potencial_ativo / total_prospectados * 100) if total_prospectados else 0
             st.markdown(f"""
-<div style="background:#1e2130;border-radius:10px;padding:20px 24px;margin:16px 0;line-height:1.9;font-size:15px">
+<div style="border:1.5px solid #e0e0e0;border-radius:10px;padding:20px 24px;margin:16px 0;line-height:2;font-size:15px">
 <strong>📊 Pesquisa de Prospecção SZI Terrenos — {d_ini_str_p[8:10]}/{d_ini_str_p[5:7]} a {d_fim_str_p[8:10]}/{d_fim_str_p[5:7]}/{d_fim_str_p[:4]}</strong><br><br>
 🔴 <strong>{len(sem_resp)} sem resposta</strong> — não retornaram após o FUP via WhatsApp. Maior volume, prioridade na próxima rodada de contato.<br>
 🟢 <strong>{len(enviaram)} enviaram terrenos</strong> — converteram o contato em indicação concreta. Gerando pipeline real para o BD Terrenos.<br>
 🟡 <strong>{len(vao)} vão procurar</strong> — demonstraram intenção positiva. Maior grupo de potencial imediato para as próximas semanas.<br>
 ⚫ <strong>{len(fora)} fora do perfil</strong> — não trabalham com o perfil buscado. Sinalizados para reavaliação da cadência.<br><br>
-<span style="color:#aaa">Total prospectado: <strong style="color:#fff">{total_prospectados}</strong> &nbsp;|&nbsp; Potencial ativo: <strong style="color:#fff">{potencial_ativo} ({pct}%)</strong></span>
+Total prospectado: <strong>{total_prospectados}</strong> &nbsp;|&nbsp; Potencial ativo: <strong>{potencial_ativo} ({pct}%)</strong>
 </div>
 """, unsafe_allow_html=True)
 
