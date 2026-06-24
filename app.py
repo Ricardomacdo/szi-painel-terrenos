@@ -924,8 +924,8 @@ if DEMO:
     st.info("Modo demonstração — selecione 'Nekt (dados reais)' na barra lateral para ver os dados reais.", icon="ℹ️")
 
 # ── ABAS ──────────────────────────────────────────────────────────────────────
-tab_dash, tab_analistas, tab_ficha, tab_alertas, tab_matricula = st.tabs([
-    "📊 Dashboard", "👤 Executivo de Canais", "🔍 Ficha do Terreno", "⚠️ Alertas", "📋 Validar Matrícula"
+tab_dash, tab_analistas, tab_ficha, tab_alertas, tab_matricula, tab_pesquisa = st.tabs([
+    "📊 Dashboard", "👤 Executivo de Canais", "🔍 Ficha do Terreno", "⚠️ Alertas", "📋 Validar Matrícula", "📞 Pesquisa Corretores"
 ])
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1692,6 +1692,235 @@ with tab_matricula:
             st.rerun()
     elif arquivo is None:
         st.info("Faça upload de uma matrícula acima para iniciar a validação.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ABA 6 — PESQUISA CORRETORES
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_pesquisa:
+    st.subheader("📞 Pesquisa de Corretores — Carteira Farmer")
+    st.caption("Atividades dos últimos 30 dias no funil SZI Prospecção Terrenos (pipeline 45) — apenas deals do Farmer (Ricardo Macedo).")
+
+    FARMER_OWNER_ID = 23882201
+
+    @st.cache_data(ttl=0, show_spinner="Consultando atividades no Nekt…")
+    def fetch_pesquisa_corretores():
+        from nekt_client import _load_jwt, init_session, execute_sql
+        jwt = _load_jwt()
+        if not jwt:
+            raise ValueError("JWT não configurado.")
+        sid = init_session(jwt)
+
+        hoje = datetime.today()
+        d_ini = (hoje - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00Z")
+        d_fim = hoje.strftime("%Y-%m-%dT23:59:59Z")
+
+        # 1 — Sem resposta
+        sql_sem_resp = f"""
+WITH enviados AS (
+  SELECT a.person_id, a.deal_id,
+    MAX(from_iso8601_timestamp(a.marked_as_done_time)) AS ultimo_envio
+  FROM nekt_operacional_bronze.pipedrive_activities a
+  JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
+  WHERE a.subject = 'SZI - Follow UP Parceiro'
+    AND a.done = true AND a.is_deleted = false
+    AND a.marked_as_done_time >= '{d_ini}'
+    AND a.marked_as_done_time <  '{d_fim}'
+    AND d.pipeline_id = 45
+    AND d.user_id     = {FARMER_OWNER_ID}
+  GROUP BY a.person_id, a.deal_id
+),
+respondidos AS (
+  SELECT DISTINCT deal_id FROM nekt_operacional_bronze.pipedrive_activities
+  WHERE subject LIKE 'Whatsapp chat%' AND is_deleted = false
+    AND add_time >= TIMESTAMP '{(hoje - timedelta(days=30)).strftime("%Y-%m-%d")} 00:00:00'
+)
+SELECT p.name AS corretor, e.deal_id,
+  CAST(DATE_TRUNC('day', e.ultimo_envio) AS DATE) AS ultimo_fup,
+  DATE_DIFF('day', DATE_TRUNC('day', e.ultimo_envio), TIMESTAMP '{hoje.strftime("%Y-%m-%d")} 00:00:00') AS dias_sem_resposta
+FROM enviados e
+JOIN nekt_operacional_bronze.pipedrive_persons p ON e.person_id = p.id
+LEFT JOIN respondidos r ON e.deal_id = r.deal_id
+WHERE r.deal_id IS NULL
+ORDER BY dias_sem_resposta DESC
+"""
+
+        # 2 — Enviaram terrenos
+        sql_enviaram = f"""
+SELECT DISTINCT p.name AS corretor, a.deal_id,
+  CAST(DATE_TRUNC('day', from_iso8601_timestamp(a.add_time)) AS DATE) AS data_indicacao
+FROM nekt_operacional_bronze.pipedrive_activities a
+JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
+JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
+WHERE a.is_deleted = false
+  AND a.add_time >= '{d_ini}'
+  AND a.add_time <  '{d_fim}'
+  AND d.pipeline_id = 45
+  AND d.user_id     = {FARMER_OWNER_ID}
+  AND (
+    LOWER(a.note) LIKE '%enviou%terreno%'
+    OR LOWER(a.note) LIKE '%indicou%terreno%'
+    OR LOWER(a.note) LIKE '%mandou%terreno%'
+    OR LOWER(a.note) LIKE '%enviou terreno%'
+    OR LOWER(a.note) LIKE '%mandou terreno%'
+  )
+ORDER BY data_indicacao DESC
+"""
+
+        # 3 — Vão procurar
+        sql_vao = f"""
+SELECT DISTINCT p.name AS corretor, a.deal_id,
+  CAST(DATE_TRUNC('day', from_iso8601_timestamp(a.add_time)) AS DATE) AS data_conversa
+FROM nekt_operacional_bronze.pipedrive_activities a
+JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
+JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
+WHERE a.subject LIKE 'Whatsapp chat%'
+  AND a.is_deleted = false
+  AND a.add_time >= '{d_ini}'
+  AND a.add_time <  '{d_fim}'
+  AND d.pipeline_id = 45
+  AND d.user_id     = {FARMER_OWNER_ID}
+  AND (
+    LOWER(a.note) LIKE '%vai procurar%'
+    OR LOWER(a.note) LIKE '%vou procurar%'
+    OR LOWER(a.note) LIKE '%vou verificar%'
+    OR LOWER(a.note) LIKE '%vou ver%'
+    OR LOWER(a.note) LIKE '%vou buscar%'
+    OR LOWER(a.note) LIKE '%vou olhar%'
+    OR LOWER(a.note) LIKE '%vou pesquisar%'
+  )
+ORDER BY data_conversa DESC
+"""
+
+        # 4 — Fora do perfil
+        sql_fora = f"""
+SELECT DISTINCT p.name AS corretor, a.deal_id,
+  CAST(DATE_TRUNC('day', from_iso8601_timestamp(a.add_time)) AS DATE) AS data_conversa
+FROM nekt_operacional_bronze.pipedrive_activities a
+JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
+JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
+WHERE a.subject LIKE 'Whatsapp chat%'
+  AND a.is_deleted = false
+  AND a.add_time >= '{d_ini}'
+  AND a.add_time <  '{d_fim}'
+  AND d.pipeline_id = 45
+  AND d.user_id     = {FARMER_OWNER_ID}
+  AND (
+    LOWER(a.note) LIKE '%não trabalha%'
+    OR LOWER(a.note) LIKE '%nao trabalha%'
+    OR LOWER(a.note) LIKE '%não tem%perfil%'
+    OR LOWER(a.note) LIKE '%sem interesse%'
+    OR LOWER(a.note) LIKE '%fora do perfil%'
+    OR LOWER(a.note) LIKE '%não tenho terrenos%'
+  )
+ORDER BY data_conversa DESC
+"""
+
+        results = {}
+        for key, sql in [
+            ("sem_resposta", sql_sem_resp),
+            ("enviaram",     sql_enviaram),
+            ("vao_procurar", sql_vao),
+            ("fora_perfil",  sql_fora),
+        ]:
+            try:
+                results[key] = execute_sql(sql, jwt, sid)
+            except Exception as e:
+                results[key] = [{"erro": str(e)}]
+        return results
+
+    col_btn_p, col_info_p = st.columns([1, 4])
+    with col_btn_p:
+        rodar_pesquisa = st.button("🔄 Atualizar pesquisa", key="btn_pesquisa", type="primary")
+    with col_info_p:
+        st.caption(f"Período: {(datetime.today()-timedelta(days=30)).strftime('%d/%m/%Y')} a {datetime.today().strftime('%d/%m/%Y')}")
+
+    if rodar_pesquisa or "pesquisa_cache" in st.session_state:
+        if rodar_pesquisa:
+            with st.spinner("Consultando atividades no Nekt (pode levar ~30s)..."):
+                try:
+                    dados = fetch_pesquisa_corretores()
+                    st.session_state["pesquisa_cache"] = dados
+                except Exception as e:
+                    st.error(f"Erro ao buscar dados: {e}")
+                    dados = None
+        else:
+            dados = st.session_state.get("pesquisa_cache")
+
+        if dados:
+            sem_resp   = [r for r in dados.get("sem_resposta", []) if "erro" not in r]
+            enviaram   = [r for r in dados.get("enviaram",     []) if "erro" not in r]
+            vao        = [r for r in dados.get("vao_procurar", []) if "erro" not in r]
+            fora       = [r for r in dados.get("fora_perfil",  []) if "erro" not in r]
+
+            # Resumo
+            c1p, c2p, c3p, c4p = st.columns(4)
+            c1p.metric("🔴 Sem resposta",   len(sem_resp))
+            c2p.metric("✅ Enviaram terrenos", len(enviaram))
+            c3p.metric("🔍 Vão procurar",   len(vao))
+            c4p.metric("❌ Fora do perfil", len(fora))
+
+            st.markdown("---")
+
+            # 1 — Sem resposta
+            with st.expander(f"🔴 Sem resposta — {len(sem_resp)} corretores", expanded=True):
+                if sem_resp:
+                    df_sr = pd.DataFrame(sem_resp)
+                    df_sr["ultimo_fup"] = pd.to_datetime(df_sr["ultimo_fup"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    df_sr.rename(columns={
+                        "corretor": "Corretor", "deal_id": "Deal ID",
+                        "ultimo_fup": "Último FUP", "dias_sem_resposta": "Dias sem resposta"
+                    }, inplace=True)
+                    st.dataframe(df_sr, use_container_width=True, hide_index=True)
+                else:
+                    st.success("Nenhum corretor sem resposta no período.")
+
+            # 2 — Enviaram terrenos
+            with st.expander(f"✅ Enviaram terrenos — {len(enviaram)} corretores"):
+                if enviaram:
+                    df_env = pd.DataFrame(enviaram)
+                    df_env["data_indicacao"] = pd.to_datetime(df_env["data_indicacao"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    df_env.rename(columns={
+                        "corretor": "Corretor", "deal_id": "Deal ID",
+                        "data_indicacao": "Data indicação"
+                    }, inplace=True)
+                    st.dataframe(df_env, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum registro de envio de terreno no período.")
+
+            # 3 — Vão procurar
+            with st.expander(f"🔍 Disseram que vão procurar — {len(vao)} corretores"):
+                if vao:
+                    df_vao = pd.DataFrame(vao)
+                    df_vao["data_conversa"] = pd.to_datetime(df_vao["data_conversa"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    df_vao.rename(columns={
+                        "corretor": "Corretor", "deal_id": "Deal ID",
+                        "data_conversa": "Data conversa"
+                    }, inplace=True)
+                    st.dataframe(df_vao, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum registro de intenção de busca no período.")
+
+            # 4 — Fora do perfil
+            with st.expander(f"❌ Fora do perfil — {len(fora)} corretores"):
+                if fora:
+                    df_fora = pd.DataFrame(fora)
+                    df_fora["data_conversa"] = pd.to_datetime(df_fora["data_conversa"], errors="coerce").dt.strftime("%d/%m/%Y")
+                    df_fora.rename(columns={
+                        "corretor": "Corretor", "deal_id": "Deal ID",
+                        "data_conversa": "Data conversa"
+                    }, inplace=True)
+                    st.dataframe(df_fora, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum corretor fora do perfil identificado no período.")
+
+            # Erros de query
+            for key, label in [("sem_resposta","Sem resposta"),("enviaram","Enviaram"),
+                                ("vao_procurar","Vão procurar"),("fora_perfil","Fora do perfil")]:
+                erros = [r for r in dados.get(key, []) if "erro" in r]
+                if erros:
+                    st.warning(f"⚠️ {label}: {erros[0]['erro']}")
+    else:
+        st.info("Clique em **Atualizar pesquisa** para carregar os dados mais recentes.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # AI ASSISTANT — CHAT
