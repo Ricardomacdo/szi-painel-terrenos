@@ -1727,7 +1727,7 @@ WITH enviados AS (
   JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
   WHERE a.subject = 'SZI - Follow UP Parceiro'
     AND a.done = true AND a.is_deleted = false
-    AND a.user_id = {F}
+
     AND a.marked_as_done_time >= '{d_ini_iso}'
     AND a.marked_as_done_time <= '{d_fim_iso}'
     AND d.pipeline_id = 45
@@ -1759,7 +1759,7 @@ WITH deals_ativos AS (
   FROM nekt_operacional_bronze.pipedrive_activities
   WHERE subject = 'SZI - Follow UP Parceiro'
     AND done = true AND is_deleted = false
-    AND user_id = {F}
+
     AND marked_as_done_time >= '{d_ini_iso}'
     AND marked_as_done_time <= '{d_fim_iso}'
   GROUP BY deal_id, person_id
@@ -1772,7 +1772,7 @@ JOIN deals_ativos d ON a.deal_id = d.deal_id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
 WHERE a.subject = 'SZI - Follow UP Parceiro'
   AND a.done = false AND a.is_deleted = false
-  AND a.user_id = {F}
+
   AND ({keywords_sql})
 ORDER BY {date_col} DESC
 """
@@ -1815,7 +1815,7 @@ JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
 WHERE (a.subject LIKE 'Whatsapp chat%' OR a.subject = 'SZI - Follow UP Parceiro')
   AND a.is_deleted = false
-  AND a.user_id = {F}
+
   AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
   AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
