@@ -1870,13 +1870,28 @@ LIMIT 300
             periodo_exibir = st.session_state.get("pesquisa_periodo", "—")
             st.caption(f"📅 Dados referentes ao período: **{periodo_exibir}**")
 
-            # Resumo
+            # Resumo — métricas
             c1p, c2p, c3p, c4p, c5p = st.columns(5)
             c1p.metric("🔴 Sem resposta",      len(sem_resp))
             c2p.metric("✅ Enviaram terrenos",  len(enviaram))
             c3p.metric("🔍 Vão procurar",      len(vao))
             c4p.metric("❌ Fora do perfil",     len(fora))
             c5p.metric("💬 Total msgs",         len(todas))
+
+            # Resumo estilo post
+            total_prospectados = len(sem_resp) + len(enviaram) + len(vao) + len(fora)
+            potencial_ativo = len(enviaram) + len(vao)
+            pct = int(potencial_ativo / total_prospectados * 100) if total_prospectados else 0
+            st.markdown(f"""
+<div style="background:#1e2130;border-radius:10px;padding:20px 24px;margin:16px 0;line-height:1.9;font-size:15px">
+<strong>📊 Pesquisa de Prospecção SZI Terrenos — {d_ini_str[8:10]}/{d_ini_str[5:7]} a {d_fim_str[8:10]}/{d_fim_str[5:7]}/{d_fim_str[:4]}</strong><br><br>
+🔴 <strong>{len(sem_resp)} sem resposta</strong> — não retornaram após o FUP via WhatsApp. Maior volume, prioridade na próxima rodada de contato.<br>
+🟢 <strong>{len(enviaram)} enviaram terrenos</strong> — converteram o contato em indicação concreta. Gerando pipeline real para o BD Terrenos.<br>
+🟡 <strong>{len(vao)} vão procurar</strong> — demonstraram intenção positiva. Maior grupo de potencial imediato para as próximas semanas.<br>
+⚫ <strong>{len(fora)} fora do perfil</strong> — não trabalham com o perfil buscado. Sinalizados para reavaliação da cadência.<br><br>
+<span style="color:#aaa">Total prospectado: <strong style="color:#fff">{total_prospectados}</strong> &nbsp;|&nbsp; Potencial ativo: <strong style="color:#fff">{potencial_ativo} ({pct}%)</strong></span>
+</div>
+""", unsafe_allow_html=True)
 
             st.markdown("---")
 
