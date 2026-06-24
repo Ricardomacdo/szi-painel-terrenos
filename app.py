@@ -1715,7 +1715,11 @@ with tab_pesquisa:
         d_ini_iso = f"{d_ini_str}T00:00:00Z"
         d_fim_iso = f"{d_fim_str}T23:59:59Z"
 
-        # 1 — Sem resposta (marked_as_done_time é varchar — comparar com string ISO)
+        # Helper: busca em note E public_description
+        def _txt(col):
+            return f"LOWER(COALESCE({col}, ''))"
+
+        # 1 — Sem resposta: FUP enviado no período sem nenhum Whatsapp chat posterior
         sql_sem_resp = f"""
 WITH enviados AS (
   SELECT a.person_id, a.deal_id,
@@ -1731,7 +1735,7 @@ WITH enviados AS (
 ),
 respondidos AS (
   SELECT DISTINCT deal_id FROM nekt_operacional_bronze.pipedrive_activities
-  WHERE subject LIKE 'Whatsapp chat%' AND is_deleted = false
+  WHERE (subject LIKE 'Whatsapp chat%' OR subject LIKE 'WhatsApp%') AND is_deleted = false
     AND add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
 )
 SELECT p.name AS corretor, e.deal_id,
@@ -1744,72 +1748,128 @@ WHERE r.deal_id IS NULL
 ORDER BY dias_sem_resposta DESC
 """
 
-        # 2 — Enviaram terrenos (add_time é timestamp — usar TIMESTAMP literal)
+        # 2 — Enviaram terrenos: busca em note E public_description, FUP E WhatsApp
         sql_enviaram = f"""
 SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_indicacao
+  a.subject AS tipo_atividade,
+  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_indicacao,
+  SUBSTR(COALESCE(a.note, a.public_description, ''), 1, 200) AS trecho
 FROM nekt_operacional_bronze.pipedrive_activities a
 JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
 WHERE a.is_deleted = false
   AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
-  AND a.add_time <  TIMESTAMP '{d_fim_str} 23:59:59'
+  AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
   AND (
-    LOWER(a.note) LIKE '%enviou%terreno%'
-    OR LOWER(a.note) LIKE '%indicou%terreno%'
-    OR LOWER(a.note) LIKE '%mandou%terreno%'
-    OR LOWER(a.note) LIKE '%enviou terreno%'
-    OR LOWER(a.note) LIKE '%mandou terreno%'
+    {_txt('a.note')} LIKE '%enviou%terreno%'
+    OR {_txt('a.note')} LIKE '%indicou%terreno%'
+    OR {_txt('a.note')} LIKE '%mandou%terreno%'
+    OR {_txt('a.note')} LIKE '%envi%terreno%'
+    OR {_txt('a.note')} LIKE '%terreno%enviado%'
+    OR {_txt('a.note')} LIKE '%segue%terreno%'
+    OR {_txt('a.note')} LIKE '%segue o terreno%'
+    OR {_txt('a.note')} LIKE '%tenho um terreno%'
+    OR {_txt('a.note')} LIKE '%tenho terreno%'
+    OR {_txt('a.public_description')} LIKE '%enviou%terreno%'
+    OR {_txt('a.public_description')} LIKE '%indicou%terreno%'
+    OR {_txt('a.public_description')} LIKE '%mandou%terreno%'
+    OR {_txt('a.public_description')} LIKE '%envi%terreno%'
+    OR {_txt('a.public_description')} LIKE '%terreno%enviado%'
+    OR {_txt('a.public_description')} LIKE '%segue%terreno%'
+    OR {_txt('a.public_description')} LIKE '%tenho%terreno%'
   )
 ORDER BY data_indicacao DESC
 """
 
-        # 3 — Vão procurar
+        # 3 — Vão procurar: busca em note E public_description
         sql_vao = f"""
 SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_conversa
+  a.subject AS tipo_atividade,
+  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_conversa,
+  SUBSTR(COALESCE(a.note, a.public_description, ''), 1, 200) AS trecho
 FROM nekt_operacional_bronze.pipedrive_activities a
 JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
-WHERE a.subject LIKE 'Whatsapp chat%'
-  AND a.is_deleted = false
+WHERE a.is_deleted = false
   AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
-  AND a.add_time <  TIMESTAMP '{d_fim_str} 23:59:59'
+  AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
   AND (
-    LOWER(a.note) LIKE '%vai procurar%'
-    OR LOWER(a.note) LIKE '%vou procurar%'
-    OR LOWER(a.note) LIKE '%vou verificar%'
-    OR LOWER(a.note) LIKE '%vou ver%'
-    OR LOWER(a.note) LIKE '%vou buscar%'
-    OR LOWER(a.note) LIKE '%vou olhar%'
-    OR LOWER(a.note) LIKE '%vou pesquisar%'
+    {_txt('a.note')} LIKE '%vai procurar%'
+    OR {_txt('a.note')} LIKE '%vou procurar%'
+    OR {_txt('a.note')} LIKE '%vou verificar%'
+    OR {_txt('a.note')} LIKE '%vou ver%'
+    OR {_txt('a.note')} LIKE '%vou buscar%'
+    OR {_txt('a.note')} LIKE '%vou olhar%'
+    OR {_txt('a.note')} LIKE '%vou pesquisar%'
+    OR {_txt('a.note')} LIKE '%vou levantar%'
+    OR {_txt('a.note')} LIKE '%vou tentar%'
+    OR {_txt('a.note')} LIKE '%vou dar uma olhada%'
+    OR {_txt('a.note')} LIKE '%estou procurando%'
+    OR {_txt('a.note')} LIKE '%estou verificando%'
+    OR {_txt('a.public_description')} LIKE '%vai procurar%'
+    OR {_txt('a.public_description')} LIKE '%vou procurar%'
+    OR {_txt('a.public_description')} LIKE '%vou verificar%'
+    OR {_txt('a.public_description')} LIKE '%vou ver%'
+    OR {_txt('a.public_description')} LIKE '%vou buscar%'
+    OR {_txt('a.public_description')} LIKE '%vou olhar%'
+    OR {_txt('a.public_description')} LIKE '%vou pesquisar%'
+    OR {_txt('a.public_description')} LIKE '%vou levantar%'
   )
 ORDER BY data_conversa DESC
 """
 
-        # 4 — Fora do perfil
+        # 4 — Fora do perfil: busca em note E public_description
         sql_fora = f"""
 SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_conversa
+  a.subject AS tipo_atividade,
+  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_conversa,
+  SUBSTR(COALESCE(a.note, a.public_description, ''), 1, 200) AS trecho
 FROM nekt_operacional_bronze.pipedrive_activities a
 JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
-WHERE a.subject LIKE 'Whatsapp chat%'
-  AND a.is_deleted = false
+WHERE a.is_deleted = false
   AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
-  AND a.add_time <  TIMESTAMP '{d_fim_str} 23:59:59'
+  AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
   AND (
-    LOWER(a.note) LIKE '%não trabalha%'
-    OR LOWER(a.note) LIKE '%nao trabalha%'
-    OR LOWER(a.note) LIKE '%não tem%perfil%'
-    OR LOWER(a.note) LIKE '%sem interesse%'
-    OR LOWER(a.note) LIKE '%fora do perfil%'
-    OR LOWER(a.note) LIKE '%não tenho terrenos%'
+    {_txt('a.note')} LIKE '%não trabalha%'
+    OR {_txt('a.note')} LIKE '%nao trabalha%'
+    OR {_txt('a.note')} LIKE '%não tem%perfil%'
+    OR {_txt('a.note')} LIKE '%sem interesse%'
+    OR {_txt('a.note')} LIKE '%fora do perfil%'
+    OR {_txt('a.note')} LIKE '%não tenho terrenos%'
+    OR {_txt('a.note')} LIKE '%não trabalho%'
+    OR {_txt('a.note')} LIKE '%nao trabalho%'
+    OR {_txt('a.note')} LIKE '%não atuo%'
+    OR {_txt('a.public_description')} LIKE '%não trabalha%'
+    OR {_txt('a.public_description')} LIKE '%nao trabalha%'
+    OR {_txt('a.public_description')} LIKE '%sem interesse%'
+    OR {_txt('a.public_description')} LIKE '%fora do perfil%'
+    OR {_txt('a.public_description')} LIKE '%não trabalho%'
+    OR {_txt('a.public_description')} LIKE '%não atuo%'
   )
 ORDER BY data_conversa DESC
+"""
+
+        # 5 — Todas as mensagens WhatsApp no período (diagnóstico)
+        sql_todas = f"""
+SELECT p.name AS corretor, a.deal_id,
+  a.subject AS tipo_atividade,
+  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data,
+  SUBSTR(COALESCE(a.note, a.public_description, ''), 1, 300) AS trecho
+FROM nekt_operacional_bronze.pipedrive_activities a
+JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
+JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
+WHERE (a.subject LIKE 'Whatsapp chat%' OR a.subject LIKE 'WhatsApp%'
+       OR a.subject = 'SZI - Follow UP Parceiro')
+  AND a.is_deleted = false
+  AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
+  AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
+  AND d.pipeline_id = 45
+ORDER BY data DESC, p.name
+LIMIT 200
 """
 
         results = {}
@@ -1818,6 +1878,7 @@ ORDER BY data_conversa DESC
             ("enviaram",     sql_enviaram),
             ("vao_procurar", sql_vao),
             ("fora_perfil",  sql_fora),
+            ("todas",        sql_todas),
         ]:
             try:
                 results[key] = execute_sql(sql, jwt, sid)
@@ -1853,28 +1914,40 @@ ORDER BY data_conversa DESC
             enviaram   = [r for r in dados.get("enviaram",     []) if "erro" not in r]
             vao        = [r for r in dados.get("vao_procurar", []) if "erro" not in r]
             fora       = [r for r in dados.get("fora_perfil",  []) if "erro" not in r]
+            todas      = [r for r in dados.get("todas",        []) if "erro" not in r]
 
             periodo_exibir = st.session_state.get("pesquisa_periodo", "—")
             st.caption(f"📅 Dados referentes ao período: **{periodo_exibir}**")
 
             # Resumo
-            c1p, c2p, c3p, c4p = st.columns(4)
-            c1p.metric("🔴 Sem resposta",   len(sem_resp))
-            c2p.metric("✅ Enviaram terrenos", len(enviaram))
-            c3p.metric("🔍 Vão procurar",   len(vao))
-            c4p.metric("❌ Fora do perfil", len(fora))
+            c1p, c2p, c3p, c4p, c5p = st.columns(5)
+            c1p.metric("🔴 Sem resposta",      len(sem_resp))
+            c2p.metric("✅ Enviaram terrenos",  len(enviaram))
+            c3p.metric("🔍 Vão procurar",      len(vao))
+            c4p.metric("❌ Fora do perfil",     len(fora))
+            c5p.metric("💬 Total msgs",         len(todas))
 
             st.markdown("---")
+
+            def _fmt_df(rows, date_cols, rename_map, show_trecho=True):
+                df = pd.DataFrame(rows)
+                for c in date_cols:
+                    if c in df.columns:
+                        df[c] = pd.to_datetime(df[c], errors="coerce").dt.strftime("%d/%m/%Y")
+                if show_trecho and "trecho" in df.columns:
+                    df["trecho"] = df["trecho"].fillna("").str.strip()
+                elif "trecho" in df.columns:
+                    df.drop(columns=["trecho"], inplace=True)
+                df.rename(columns=rename_map, inplace=True)
+                return df
 
             # 1 — Sem resposta
             with st.expander(f"🔴 Sem resposta — {len(sem_resp)} corretores", expanded=True):
                 if sem_resp:
-                    df_sr = pd.DataFrame(sem_resp)
-                    df_sr["ultimo_fup"] = pd.to_datetime(df_sr["ultimo_fup"], errors="coerce").dt.strftime("%d/%m/%Y")
-                    df_sr.rename(columns={
+                    df_sr = _fmt_df(sem_resp, ["ultimo_fup"], {
                         "corretor": "Corretor", "deal_id": "Deal ID",
                         "ultimo_fup": "Último FUP", "dias_sem_resposta": "Dias sem resposta"
-                    }, inplace=True)
+                    }, show_trecho=False)
                     st.dataframe(df_sr, use_container_width=True, hide_index=True)
                 else:
                     st.success("Nenhum corretor sem resposta no período.")
@@ -1882,45 +1955,71 @@ ORDER BY data_conversa DESC
             # 2 — Enviaram terrenos
             with st.expander(f"✅ Enviaram terrenos — {len(enviaram)} corretores"):
                 if enviaram:
-                    df_env = pd.DataFrame(enviaram)
-                    df_env["data_indicacao"] = pd.to_datetime(df_env["data_indicacao"], errors="coerce").dt.strftime("%d/%m/%Y")
-                    df_env.rename(columns={
+                    df_env = _fmt_df(enviaram, ["data_indicacao"], {
                         "corretor": "Corretor", "deal_id": "Deal ID",
-                        "data_indicacao": "Data indicação"
-                    }, inplace=True)
-                    st.dataframe(df_env, use_container_width=True, hide_index=True)
+                        "tipo_atividade": "Tipo", "data_indicacao": "Data",
+                        "trecho": "Trecho da nota"
+                    })
+                    st.dataframe(df_env, use_container_width=True, hide_index=True,
+                                 column_config={"Trecho da nota": st.column_config.TextColumn(width="large")})
                 else:
                     st.info("Nenhum registro de envio de terreno no período.")
 
             # 3 — Vão procurar
             with st.expander(f"🔍 Disseram que vão procurar — {len(vao)} corretores"):
                 if vao:
-                    df_vao = pd.DataFrame(vao)
-                    df_vao["data_conversa"] = pd.to_datetime(df_vao["data_conversa"], errors="coerce").dt.strftime("%d/%m/%Y")
-                    df_vao.rename(columns={
+                    df_vao = _fmt_df(vao, ["data_conversa"], {
                         "corretor": "Corretor", "deal_id": "Deal ID",
-                        "data_conversa": "Data conversa"
-                    }, inplace=True)
-                    st.dataframe(df_vao, use_container_width=True, hide_index=True)
+                        "tipo_atividade": "Tipo", "data_conversa": "Data",
+                        "trecho": "Trecho da nota"
+                    })
+                    st.dataframe(df_vao, use_container_width=True, hide_index=True,
+                                 column_config={"Trecho da nota": st.column_config.TextColumn(width="large")})
                 else:
                     st.info("Nenhum registro de intenção de busca no período.")
 
             # 4 — Fora do perfil
             with st.expander(f"❌ Fora do perfil — {len(fora)} corretores"):
                 if fora:
-                    df_fora = pd.DataFrame(fora)
-                    df_fora["data_conversa"] = pd.to_datetime(df_fora["data_conversa"], errors="coerce").dt.strftime("%d/%m/%Y")
-                    df_fora.rename(columns={
+                    df_fora = _fmt_df(fora, ["data_conversa"], {
                         "corretor": "Corretor", "deal_id": "Deal ID",
-                        "data_conversa": "Data conversa"
-                    }, inplace=True)
-                    st.dataframe(df_fora, use_container_width=True, hide_index=True)
+                        "tipo_atividade": "Tipo", "data_conversa": "Data",
+                        "trecho": "Trecho da nota"
+                    })
+                    st.dataframe(df_fora, use_container_width=True, hide_index=True,
+                                 column_config={"Trecho da nota": st.column_config.TextColumn(width="large")})
                 else:
                     st.info("Nenhum corretor fora do perfil identificado no período.")
 
+            # 5 — Todas as mensagens (diagnóstico / busca livre)
+            with st.expander(f"💬 Todas as mensagens do período — {len(todas)} registros"):
+                if todas:
+                    busca_livre = st.text_input(
+                        "🔎 Filtrar por corretor ou palavra-chave:",
+                        placeholder="Ex: João, terreno, procurar…",
+                        key="pesq_busca_livre"
+                    )
+                    df_todas = _fmt_df(todas, ["data"], {
+                        "corretor": "Corretor", "deal_id": "Deal ID",
+                        "tipo_atividade": "Tipo", "data": "Data",
+                        "trecho": "Trecho da nota"
+                    })
+                    if busca_livre.strip():
+                        mask_t = df_todas.apply(
+                            lambda row: row.astype(str).str.contains(busca_livre.strip(), case=False, na=False).any(),
+                            axis=1
+                        )
+                        df_todas = df_todas[mask_t]
+                    st.caption(f"{len(df_todas)} mensagem(ns) exibida(s)")
+                    st.dataframe(df_todas, use_container_width=True, hide_index=True,
+                                 column_config={"Trecho da nota": st.column_config.TextColumn(width="large")})
+                else:
+                    st.info("Nenhuma mensagem encontrada no período.")
+
             # Erros de query
             for key, label in [("sem_resposta","Sem resposta"),("enviaram","Enviaram"),
-                                ("vao_procurar","Vão procurar"),("fora_perfil","Fora do perfil")]:
+                                ("vao_procurar","Vão procurar"),("fora_perfil","Fora do perfil"),
+                                ("todas","Todas as mensagens")]:
                 erros = [r for r in dados.get(key, []) if "erro" in r]
                 if erros:
                     st.warning(f"⚠️ {label}: {erros[0]['erro']}")
