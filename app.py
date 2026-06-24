@@ -1731,6 +1731,7 @@ WITH enviados AS (
     AND a.marked_as_done_time >= '{d_ini_iso}'
     AND a.marked_as_done_time <= '{d_fim_iso}'
     AND d.pipeline_id = 45
+    AND d.owner_id = {FARMER_OWNER_ID}
   GROUP BY a.person_id, a.deal_id
 ),
 respondidos AS (
@@ -1754,15 +1755,17 @@ ORDER BY dias_sem_resposta DESC
         def _sql_categoria(keywords_sql: str, date_col: str) -> str:
             return f"""
 WITH deals_ativos AS (
-  SELECT DISTINCT deal_id, person_id,
-    MAX(from_iso8601_timestamp(marked_as_done_time)) AS ultimo_contato
-  FROM nekt_operacional_bronze.pipedrive_activities
-  WHERE subject = 'SZI - Follow UP Parceiro'
-    AND done = true AND is_deleted = false
-
-    AND marked_as_done_time >= '{d_ini_iso}'
-    AND marked_as_done_time <= '{d_fim_iso}'
-  GROUP BY deal_id, person_id
+  SELECT DISTINCT a.deal_id, a.person_id,
+    MAX(from_iso8601_timestamp(a.marked_as_done_time)) AS ultimo_contato
+  FROM nekt_operacional_bronze.pipedrive_activities a
+  JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
+  WHERE a.subject = 'SZI - Follow UP Parceiro'
+    AND a.done = true AND a.is_deleted = false
+    AND a.marked_as_done_time >= '{d_ini_iso}'
+    AND a.marked_as_done_time <= '{d_fim_iso}'
+    AND d.pipeline_id = 45
+    AND d.owner_id = {FARMER_OWNER_ID}
+  GROUP BY a.deal_id, a.person_id
 )
 SELECT DISTINCT p.name AS corretor, a.deal_id,
   CAST(DATE_TRUNC('day', d.ultimo_contato) AS DATE) AS {date_col},
