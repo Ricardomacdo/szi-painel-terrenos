@@ -1673,10 +1673,13 @@ with tab_pesquisa:
         sid = init_session(jwt)
 
         hoje = datetime.today()
-        d_ini = (hoje - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00Z")
-        d_fim = hoje.strftime("%Y-%m-%dT23:59:59Z")
+        d_ini_str = (hoje - timedelta(days=30)).strftime("%Y-%m-%d")
+        d_fim_str = hoje.strftime("%Y-%m-%d")
+        d_ini_iso = f"{d_ini_str}T00:00:00Z"
+        d_fim_iso = f"{d_fim_str}T23:59:59Z"
 
         # 1 — Sem resposta
+        # marked_as_done_time é varchar — comparar com string ISO diretamente
         sql_sem_resp = f"""
 WITH enviados AS (
   SELECT a.person_id, a.deal_id,
@@ -1685,20 +1688,19 @@ WITH enviados AS (
   JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
   WHERE a.subject = 'SZI - Follow UP Parceiro'
     AND a.done = true AND a.is_deleted = false
-    AND a.marked_as_done_time >= '{d_ini}'
-    AND a.marked_as_done_time <  '{d_fim}'
+    AND a.marked_as_done_time >= '{d_ini_iso}'
+    AND a.marked_as_done_time <  '{d_fim_iso}'
     AND d.pipeline_id = 45
-    AND d.user_id     = {FARMER_OWNER_ID}
   GROUP BY a.person_id, a.deal_id
 ),
 respondidos AS (
   SELECT DISTINCT deal_id FROM nekt_operacional_bronze.pipedrive_activities
   WHERE subject LIKE 'Whatsapp chat%' AND is_deleted = false
-    AND add_time >= TIMESTAMP '{(hoje - timedelta(days=30)).strftime("%Y-%m-%d")} 00:00:00'
+    AND add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
 )
 SELECT p.name AS corretor, e.deal_id,
   CAST(DATE_TRUNC('day', e.ultimo_envio) AS DATE) AS ultimo_fup,
-  DATE_DIFF('day', DATE_TRUNC('day', e.ultimo_envio), TIMESTAMP '{hoje.strftime("%Y-%m-%d")} 00:00:00') AS dias_sem_resposta
+  DATE_DIFF('day', DATE_TRUNC('day', e.ultimo_envio), TIMESTAMP '{d_fim_str} 00:00:00') AS dias_sem_resposta
 FROM enviados e
 JOIN nekt_operacional_bronze.pipedrive_persons p ON e.person_id = p.id
 LEFT JOIN respondidos r ON e.deal_id = r.deal_id
@@ -1706,18 +1708,17 @@ WHERE r.deal_id IS NULL
 ORDER BY dias_sem_resposta DESC
 """
 
-        # 2 — Enviaram terrenos
+        # 2 — Enviaram terrenos (add_time é timestamp — usar TIMESTAMP literal)
         sql_enviaram = f"""
 SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', from_iso8601_timestamp(a.add_time)) AS DATE) AS data_indicacao
+  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_indicacao
 FROM nekt_operacional_bronze.pipedrive_activities a
 JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
 WHERE a.is_deleted = false
-  AND a.add_time >= '{d_ini}'
-  AND a.add_time <  '{d_fim}'
+  AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
+  AND a.add_time <  TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
-  AND d.user_id     = {FARMER_OWNER_ID}
   AND (
     LOWER(a.note) LIKE '%enviou%terreno%'
     OR LOWER(a.note) LIKE '%indicou%terreno%'
@@ -1731,16 +1732,15 @@ ORDER BY data_indicacao DESC
         # 3 — Vão procurar
         sql_vao = f"""
 SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', from_iso8601_timestamp(a.add_time)) AS DATE) AS data_conversa
+  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_conversa
 FROM nekt_operacional_bronze.pipedrive_activities a
 JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
 WHERE a.subject LIKE 'Whatsapp chat%'
   AND a.is_deleted = false
-  AND a.add_time >= '{d_ini}'
-  AND a.add_time <  '{d_fim}'
+  AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
+  AND a.add_time <  TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
-  AND d.user_id     = {FARMER_OWNER_ID}
   AND (
     LOWER(a.note) LIKE '%vai procurar%'
     OR LOWER(a.note) LIKE '%vou procurar%'
@@ -1756,16 +1756,15 @@ ORDER BY data_conversa DESC
         # 4 — Fora do perfil
         sql_fora = f"""
 SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', from_iso8601_timestamp(a.add_time)) AS DATE) AS data_conversa
+  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_conversa
 FROM nekt_operacional_bronze.pipedrive_activities a
 JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
 WHERE a.subject LIKE 'Whatsapp chat%'
   AND a.is_deleted = false
-  AND a.add_time >= '{d_ini}'
-  AND a.add_time <  '{d_fim}'
+  AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
+  AND a.add_time <  TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
-  AND d.user_id     = {FARMER_OWNER_ID}
   AND (
     LOWER(a.note) LIKE '%não trabalha%'
     OR LOWER(a.note) LIKE '%nao trabalha%'
