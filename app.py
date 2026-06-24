@@ -1884,7 +1884,7 @@ LIMIT 300
             pct = int(potencial_ativo / total_prospectados * 100) if total_prospectados else 0
             st.markdown(f"""
 <div style="background:#1e2130;border-radius:10px;padding:20px 24px;margin:16px 0;line-height:1.9;font-size:15px">
-<strong>📊 Pesquisa de Prospecção SZI Terrenos — {d_ini_str[8:10]}/{d_ini_str[5:7]} a {d_fim_str[8:10]}/{d_fim_str[5:7]}/{d_fim_str[:4]}</strong><br><br>
+<strong>📊 Pesquisa de Prospecção SZI Terrenos — {d_ini_str_p[8:10]}/{d_ini_str_p[5:7]} a {d_fim_str_p[8:10]}/{d_fim_str_p[5:7]}/{d_fim_str_p[:4]}</strong><br><br>
 🔴 <strong>{len(sem_resp)} sem resposta</strong> — não retornaram após o FUP via WhatsApp. Maior volume, prioridade na próxima rodada de contato.<br>
 🟢 <strong>{len(enviaram)} enviaram terrenos</strong> — converteram o contato em indicação concreta. Gerando pipeline real para o BD Terrenos.<br>
 🟡 <strong>{len(vao)} vão procurar</strong> — demonstraram intenção positiva. Maior grupo de potencial imediato para as próximas semanas.<br>
