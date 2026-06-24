@@ -245,7 +245,6 @@ def fetch_pipefy(token: str) -> pd.DataFrame:
                 "data_entrada": node.get("created_at","")[:10],
                 "data_fase":    node.get("updated_at","")[:10],
                 "score":    _field(fields,"score","land score","pontuação"),
-                "vgv":      _field(fields,"vgv"),
                 "preco":    _field(fields,"preço","valor","price"),
                 "area_m2":  _field(fields,"área","area","m²"),
                 "cota_terreno": _field(fields,"cota"),
@@ -377,7 +376,6 @@ def fetch_nekt_data() -> pd.DataFrame:
         interesse_v   = _temp_to_interesse(r.get("temperatura_da_negociacao"))
 
         # Financeiro
-        vgv_v   = _parse_br_money(r.get("vgv_ap"))
         preco_v = _parse_br_money(r.get("valor"))
         roi_v_raw = r.get("roi_ap") or r.get("roi_em") or ""
         roi_v   = _parse_br_money(roi_v_raw)
@@ -419,7 +417,6 @@ def fetch_nekt_data() -> pd.DataFrame:
             "score_total": score_total_v,
             "interesse":   interesse_v,
             "temperatura": r.get("temperatura_da_negociacao"),
-            "vgv":         vgv_v,
             "preco":       preco_v,
             "area_m2":     area_v,
             "roi_est":     roi_v,
@@ -446,7 +443,6 @@ def fetch_nekt_data() -> pd.DataFrame:
             "motivo_perda": r.get("motivo_de_perda", ""),
             # EM — Estudo de Massa
             "etapa_em":    str(r.get("etapa_de_projeto",  "") or ""),
-            "vgv_em":      _parse_br_money(r.get("vgv_roi_em")),
             "roi_em_val":  _parse_br_money(r.get("roi_em")),
             # EP — Estudo Preliminar
             "etapa_ep":    str(r.get("etapa_de_proposta", "") or ""),
@@ -495,7 +491,6 @@ def demo_data() -> pd.DataFrame:
             andares      = random.randint(4, 18)
             num_unidades = andares * random.randint(2, 6)
             preco        = random.randint(2_000_000, 40_000_000)
-            vgv          = num_unidades * random.randint(400_000, 1_200_000)
             cota_terreno = round(preco / num_unidades, 2)
             roi_est      = round(random.uniform(8, 22), 1)
             score        = random.randint(200, 480)
@@ -524,7 +519,6 @@ def demo_data() -> pd.DataFrame:
                     "ap_area_rem":   f"{area_rem:.0f} m²",
                     "ap_recuos":     f"Frontal {random.randint(3,6)}m / Lateral {random.randint(1,3)}m / Fundo {random.randint(2,4)}m",
                     "ap_ticket":     f"R$ {cota_terreno:,.0f}",
-                    "ap_vgv":        f"R$ {vgv:,.0f}",
                     "ap_zoneamento": zoneamento,
                     "ap_tipologia":  tipologia,
                 }
@@ -539,7 +533,6 @@ def demo_data() -> pd.DataFrame:
                     "em_area_util":   f"{area_m2 * ia_val:.0f} m²",
                     "em_cub_tipo":    tipologia,
                     "em_majoracao":   "1.85 (SC)",
-                    "em_vgv_det":     f"R$ {vgv:,.0f}",
                     "em_roi":         f"{roi_est:.1f}% a.a.",
                 }
 
@@ -625,7 +618,7 @@ def demo_data() -> pd.DataFrame:
                 "cidade": cidade, "microrregiao": micro,
                 "interesse": interesse, "score_micro": micro_score,
                 "score": score, "fase_atual": fase, "status": _status(fase),
-                "vgv": vgv, "preco": preco, "area_m2": area_m2,
+                "preco": preco, "area_m2": area_m2,
                 "num_unidades": num_unidades, "cota_terreno": cota_terreno,
                 "roi_est": roi_est, "ticket_cap": ticket_cap,
                 "tem_matricula": tem_mat,
@@ -815,7 +808,6 @@ def render_card(row):
 
     col4.markdown("**💰 Financeiro**")
     col4.write(f"Preço: **R$ {row.get('preco',0):,.0f}**" if pd.notna(row.get("preco")) else "Preço: —")
-    col4.write(f"VGV: **R$ {row.get('vgv',0):,.0f}**"    if pd.notna(row.get("vgv"))   else "VGV: —")
     col4.write(f"Cota: **R$ {row.get('cota_terreno',0):,.0f}**" if pd.notna(row.get("cota_terreno")) else "Cota: —")
     roi_v = row.get("roi_est")
     roi_ic = "🟢" if pd.notna(roi_v) and roi_v >= ROI_BENCHMARK else "🔴"
@@ -876,7 +868,6 @@ def render_card(row):
         a3.metric("Área Remanescente", ap.get("ap_area_rem","—"))
         a3.metric("Recuos",            ap.get("ap_recuos","—"))
         a4.metric("Ticket (Cota)",     ap.get("ap_ticket","—"))
-        a4.metric("VGV (AP)",          ap.get("ap_vgv","—"))
 
     # ── EM ──────────────────────────────────────────────────────────────────
     em = row.get("_em")
@@ -890,7 +881,6 @@ def render_card(row):
         e2.metric("Área Útil",     em.get("em_area_util","—"))
         e3.metric("Tipologia CUB", em.get("em_cub_tipo","—"))
         e3.metric("Majoração",     em.get("em_majoracao","—"))
-        e4.metric("VGV Detalhado", em.get("em_vgv_det","—"))
         e4.metric("ROI (EM)",      em.get("em_roi","—"))
 
     # ── Análise Private ─────────────────────────────────────────────────────
@@ -963,25 +953,22 @@ with tab_dash:
     df = df_raw[mask].copy()
 
     score_num = pd.to_numeric(df["score"], errors="coerce")
-    vgv_num   = pd.to_numeric(df["vgv"],   errors="coerce")
     dias_num  = pd.to_numeric(df.get("dias_na_fase", pd.Series(dtype=float)), errors="coerce") if "dias_na_fase" in df.columns else pd.Series(dtype=float)
 
     total         = len(df)
-    vgv_total     = vgv_num.sum()
     qualificados  = int((score_num >= SCORE_MINIMO).sum())
     falta_info    = int((df["fase_atual"] == "Falta Informação").sum())
     backups       = int(((score_num < SCORE_MINIMO) & (df["status"] == "Aberto")).sum())
     sem_matricula = int((~df["tem_matricula"].fillna(False).astype(bool)).sum()) if "tem_matricula" in df.columns and not df["tem_matricula"].isna().all() else 0
     travados      = int((dias_num >= 15).sum()) if not dias_num.empty else 0
 
-    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("No Funil",                  total)
-    c2.metric("VGV Potencial",             f"R$ {vgv_total/1e6:.1f}M" if vgv_total else "—")
-    c3.metric(f"Qualificados (≥{SCORE_MINIMO})", qualificados)
-    c4.metric("Falta Informação",          falta_info,    delta_color="inverse")
-    c5.metric("Backup",                    backups)
-    c6.metric("Sem Matrícula",             sem_matricula, delta_color="inverse")
-    c7.metric("🔴 Travados (≥15d)",        travados,      delta_color="inverse")
+    c2.metric(f"Qualificados (≥{SCORE_MINIMO})", qualificados)
+    c3.metric("Falta Informação",          falta_info,    delta_color="inverse")
+    c4.metric("Backup",                    backups)
+    c5.metric("Sem Matrícula",             sem_matricula, delta_color="inverse")
+    c6.metric("🔴 Travados (≥15d)",        travados,      delta_color="inverse")
 
     # ── INSIGHTS DE IA ────────────────────────────────────────────────────────
     with st.expander("🤖 Análise IA do Funil", expanded=True):
@@ -991,7 +978,6 @@ with tab_dash:
 
                 # --- dados de contexto ---
                 travados_nomes = df[dias_num >= 15][["id","terreno","fase_atual","dias_na_fase"]].to_dict("records") if not dias_num.empty else []
-                top_vgv = df.nlargest(5, "vgv")[["id","terreno","cidade","vgv","score","fase_atual"]].to_dict("records")
 
                 # campos faltantes por terreno em Falta Informação
                 CAMPOS_VERIFICAR = {
@@ -1024,7 +1010,6 @@ with tab_dash:
 
 === ESTADO DO FUNIL (hoje) ===
 - Total no funil: {total} terrenos
-- VGV potencial: R$ {vgv_total/1e6:.1f}M
 - Qualificados (score ≥{SCORE_MINIMO}): {qualificados}
 - Backup (abaixo da régua): {backups}
 - Sem matrícula: {sem_matricula}
@@ -1037,9 +1022,6 @@ with tab_dash:
 
 === OPORTUNIDADES — score alto ainda na triagem ===
 {oportunidades if oportunidades else "Nenhuma oportunidade identificada."}
-
-=== TOP 5 POR VGV ===
-{top_vgv}
 
 === TAREFA ===
 Monte um PLANO DO DIA para o Ricardo em 4 seções:
@@ -1100,15 +1082,11 @@ Seja direto, prático e use dados concretos. Português brasileiro."""
     with col_d:
         st.subheader("👤 Executivo de Canais")
         if not df.empty:
-            ac = (df.assign(vgv_n=vgv_num).groupby("analista")
-                  .agg(Terrenos=("terreno","count"), VGV=("vgv_n","sum"))
-                  .reset_index())
-            ac["VGV_M"] = ac["VGV"].apply(lambda x: f"R$ {x/1e6:.1f}M")
+            ac = df.groupby("analista").agg(Terrenos=("terreno","count")).reset_index()
             ac_disp = ac.rename(columns={"analista": "Executivo de Canais"})
             fig4 = px.bar(ac_disp, x="Executivo de Canais", y="Terrenos", text="Terrenos",
                           color="Executivo de Canais",
-                          color_discrete_sequence=["#0ea5e9","#10b981"],
-                          hover_data={"VGV_M": True, "VGV": False})
+                          color_discrete_sequence=["#0ea5e9","#10b981"])
             fig4.update_layout(showlegend=False, height=400, xaxis_title="")
             st.plotly_chart(fig4, width='stretch')
 
@@ -1172,8 +1150,8 @@ Seja direto, prático e use dados concretos. Português brasileiro."""
     # Inclui id_do_card para usar no link (separado do id de exibição)
     cols_show = [c for c in [
         "id_do_card","id","terreno","cidade","microrregiao","fase_atual","status",
-        "score","dias_na_fase","vgv",
-        "etapa_em","vgv_em","roi_em_val",
+        "score","dias_na_fase",
+        "etapa_em",
         "etapa_ep",
         "data_entrada",
     ] if c in df_tabela.columns]
@@ -1190,14 +1168,6 @@ Seja direto, prático e use dados concretos. Português brasileiro."""
         return ""
     df_disp["id_do_card"] = df_tabela.reset_index(drop=True).apply(_build_url, axis=1)
 
-    if "vgv" in df_disp:
-        df_disp["vgv"] = pd.to_numeric(df_disp["vgv"], errors="coerce").apply(
-            lambda x: f"R$ {x/1e6:.2f}M" if pd.notna(x) and x >= 1e6
-            else (f"R$ {x:,.0f}" if pd.notna(x) else "—"))
-    if "vgv_em" in df_disp:
-        df_disp["vgv_em"] = pd.to_numeric(df_disp["vgv_em"], errors="coerce").apply(
-            lambda x: f"R$ {x/1e6:.2f}M" if pd.notna(x) and x >= 1e6
-            else (f"R$ {x:,.0f}" if pd.notna(x) else "—"))
     if "roi_em_val" in df_disp:
         df_disp["roi_em_val"] = pd.to_numeric(df_disp["roi_em_val"], errors="coerce").apply(
             lambda x: f"{x:.1f}%" if pd.notna(x) and x > 0 else "—")
@@ -1215,8 +1185,8 @@ Seja direto, prático e use dados concretos. Português brasileiro."""
         "id":"ID","id_do_card":"🔗",
         "terreno":"Terreno","cidade":"Cidade","microrregiao":"Microrregião",
         "fase_atual":"Fase","status":"Status","score":"Score",
-        "dias_na_fase":"⏱ Dias na Fase","vgv":"VGV AP",
-        "etapa_em":"Etapa EM","vgv_em":"VGV EM","roi_em_val":"ROI EM",
+        "dias_na_fase":"⏱ Dias na Fase",
+        "etapa_em":"Etapa EM","roi_em_val":"ROI EM",
         "etapa_ep":"Etapa EP",
         "data_entrada":"Entrada",
     }, inplace=True)
@@ -1255,13 +1225,11 @@ with tab_analistas:
     for analista in sorted(df_raw["analista"].dropna().unique().tolist()):
         df_an    = df_raw[df_raw["analista"] == analista].copy()
         score_an = pd.to_numeric(df_an["score"], errors="coerce")
-        vgv_an   = pd.to_numeric(df_an["vgv"],   errors="coerce")
         dias_an  = pd.to_numeric(df_an.get("dias_na_fase", pd.Series(dtype=float)), errors="coerce") if "dias_na_fase" in df_an.columns else pd.Series(dtype=float)
 
         total_an    = len(df_an)
         ativos_an   = int((df_an["status"] == "Aberto").sum())
         qualif_an   = int((score_an >= SCORE_MINIMO).sum())
-        vgv_an_tot  = vgv_an.sum()
         ganhos_an   = int((df_an["status"] == "Ganho").sum())
         perdidos_an = int((df_an["status"] == "Perdido").sum())
         travados_an = int((dias_an >= 15).sum()) if not dias_an.empty else 0
@@ -1269,28 +1237,25 @@ with tab_analistas:
         st.markdown("---")
         st.markdown(f"### 🧑‍💼 {analista}")
 
-        m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
+        m1, m2, m3, m4, m5, m6 = st.columns(6)
         m1.metric("Total Terrenos",              total_an)
         m2.metric("Ativos no Funil",             ativos_an)
         m3.metric(f"Qualificados (≥{SCORE_MINIMO})", qualif_an)
-        m4.metric("VGV Potencial",               f"R$ {vgv_an_tot/1e6:.1f}M" if vgv_an_tot else "—")
-        m5.metric("Ganhos",                      ganhos_an)
-        m6.metric("Perdidos",                    perdidos_an)
-        m7.metric("🔴 Travados (≥15d)",          travados_an, delta_color="inverse")
+        m4.metric("Ganhos",                      ganhos_an)
+        m5.metric("Perdidos",                    perdidos_an)
+        m6.metric("🔴 Travados (≥15d)",          travados_an, delta_color="inverse")
 
         # ── ANÁLISE IA POR EXECUTIVO ──────────────────────────────────────────
         if st.button(f"🤖 Analisar carteira de {analista}", key=f"btn_ia_{analista}"):
             try:
                 from ai_client import ask_claude
                 fases_an = df_an["fase_atual"].value_counts().to_dict()
-                top5_an  = df_an.nlargest(5, "vgv")[["id","terreno","cidade","score","fase_atual"]].to_dict("records") if "vgv" in df_an.columns else []
                 travados_lista = df_an[dias_an >= 15][["id","terreno","fase_atual"]].to_dict("records") if not dias_an.empty else []
                 contexto_an = f"""Carteira do executivo {analista}:
 - Total: {total_an} terrenos | Ativos: {ativos_an} | Qualificados (≥{SCORE_MINIMO}): {qualif_an}
-- VGV potencial: R$ {vgv_an_tot/1e6:.1f}M | Ganhos: {ganhos_an} | Perdidos: {perdidos_an}
+- Ganhos: {ganhos_an} | Perdidos: {perdidos_an}
 - Travados (≥15 dias): {travados_an} → {travados_lista}
 - Distribuição por fase: {fases_an}
-- Top 5 por VGV: {top5_an}
 
 Faça uma análise da carteira deste executivo: como está o desempenho? Quais terrenos merecem atenção imediata? Qual a recomendação de próximos passos?"""
                 with st.spinner(f"Analisando carteira de {analista}..."):
@@ -1319,7 +1284,7 @@ Faça uma análise da carteira deste executivo: como está o desempenho? Quais t
             st.markdown("**Todos os Terrenos Indicados** — clique no ID para abrir no Pipefy")
             cols_an = [c for c in [
                 "id_do_card","id","terreno","cidade","microrregiao","fase_atual","status",
-                "score","dias_na_fase","vgv","corretor","data_entrada",
+                "score","dias_na_fase","corretor","data_entrada",
             ] if c in df_an.columns]
             df_an_disp = df_an[cols_an].copy().reset_index(drop=True)
 
@@ -1333,9 +1298,6 @@ Faça uma análise da carteira deste executivo: como está o desempenho? Quais t
                 return ""
             df_an_disp["id_do_card"] = df_an.reset_index(drop=True).apply(_build_url_an, axis=1)
 
-            if "vgv" in df_an_disp:
-                df_an_disp["vgv"] = pd.to_numeric(df_an_disp["vgv"], errors="coerce").apply(
-                    lambda x: f"R$ {x:,.0f}" if pd.notna(x) else "—")
             if "data_entrada" in df_an_disp:
                 df_an_disp["data_entrada"] = pd.to_datetime(
                     df_an_disp["data_entrada"], errors="coerce").dt.strftime("%d/%m/%Y")
@@ -1351,7 +1313,7 @@ Faça uma análise da carteira deste executivo: como está o desempenho? Quais t
                 "terreno":"Terreno","cidade":"Cidade",
                 "microrregiao":"Microrregião","fase_atual":"Fase Atual",
                 "status":"Status","score":"Score","dias_na_fase":"⏱ Dias",
-                "vgv":"VGV Est.","corretor":"Corretor","data_entrada":"Entrada",
+                "corretor":"Corretor","data_entrada":"Entrada",
             }, inplace=True)
 
             st.dataframe(
@@ -1416,7 +1378,7 @@ with tab_ficha:
                         info = f"""Terreno: {row.get('terreno','—')} (ID: {row.get('id','—')})
 Localização: {row.get('cidade','—')} · {row.get('microrregiao','—')} · Zoneamento: {row.get('zoneamento','—')}
 Score: {row.get('score','—')} (mínimo: {SCORE_MINIMO}) · Interesse: {row.get('interesse','—')}/5 · Score Micro: {row.get('score_micro','—')}/10
-Área: {row.get('area_m2','—')} m² · Preço: R$ {row.get('preco',0):,.0f} · VGV: R$ {row.get('vgv',0):,.0f}
+Área: {row.get('area_m2','—')} m² · Preço: R$ {row.get('preco',0):,.0f}
 Cota terreno: R$ {row.get('cota_terreno',0):,.0f} · ROI estimado: {row.get('roi_est','—')}% a.a.
 Fase atual: {row.get('fase_atual','—')} · Dias na fase: {row.get('dias_na_fase','—')}
 Executivo de Canais: {row.get('analista','—')} · Corretor: {row.get('corretor','—')}
@@ -1956,8 +1918,7 @@ if st.session_state.show_chat:
             dias_chat = pd.to_numeric(df_raw.get("dias_na_fase", pd.Series(dtype=float)), errors="coerce") if "dias_na_fase" in df_raw.columns else pd.Series(dtype=float)
             score_chat = pd.to_numeric(df_raw["score"], errors="coerce")
             contexto_funil = f"""[CONTEXTO DO FUNIL ATUAL — {datetime.now().strftime('%d/%m/%Y %H:%M')}]
-Total: {len(df_raw)} terrenos | VGV: R$ {pd.to_numeric(df_raw['vgv'], errors='coerce').sum()/1e6:.1f}M
-Qualificados (≥{SCORE_MINIMO}): {int((score_chat >= SCORE_MINIMO).sum())} | Travados (≥15d): {int((dias_chat >= 15).sum())}
+Total: {len(df_raw)} terrenos | Qualificados (≥{SCORE_MINIMO}): {int((score_chat >= SCORE_MINIMO).sum())} | Travados (≥15d): {int((dias_chat >= 15).sum())}
 Fases: {df_raw['fase_atual'].value_counts().to_dict()}
 """
             prompt_com_contexto = contexto_funil + "\n" + prompt
