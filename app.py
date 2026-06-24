@@ -1662,6 +1662,7 @@ with tab_pesquisa:
     st.subheader("📞 Pesquisa de Corretores — Carteira Farmer")
 
     FARMER_OWNER_ID = 23882201
+    st.caption("🔒 Filtrado por: **Farmer — Ricardo Macedo** (owner_id 23882201)")
 
     # ── Seletor de período ────────────────────────────────────────────────────
     col_per, col_d1, col_d2 = st.columns([2, 2, 2])
@@ -1822,6 +1823,7 @@ WHERE (a.subject LIKE 'Whatsapp chat%' OR a.subject = 'SZI - Follow UP Parceiro'
   AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
   AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
+  AND d.owner_id = {FARMER_OWNER_ID}
 ORDER BY data DESC, p.name
 LIMIT 300
 """
