@@ -1660,26 +1660,62 @@ with tab_matricula:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_pesquisa:
     st.subheader("📞 Pesquisa de Corretores — Carteira Farmer")
-    st.caption("Atividades dos últimos 30 dias no funil SZI Prospecção Terrenos (pipeline 45) — apenas deals do Farmer (Ricardo Macedo).")
 
     FARMER_OWNER_ID = 23882201
 
+    # ── Seletor de período ────────────────────────────────────────────────────
+    col_per, col_d1, col_d2 = st.columns([2, 2, 2])
+    with col_per:
+        periodo_sel = st.radio(
+            "Período:",
+            ["Hoje", "Esta semana", "Este mês", "Personalizado"],
+            horizontal=True,
+            key="pesq_periodo",
+        )
+
+    hoje_p = datetime.today().date()
+    if periodo_sel == "Hoje":
+        data_ini_p = hoje_p
+        data_fim_p = hoje_p
+    elif periodo_sel == "Esta semana":
+        data_ini_p = hoje_p - timedelta(days=hoje_p.weekday())  # segunda-feira
+        data_fim_p = hoje_p
+    elif periodo_sel == "Este mês":
+        data_ini_p = hoje_p.replace(day=1)
+        data_fim_p = hoje_p
+    else:
+        data_ini_p = hoje_p - timedelta(days=30)
+        data_fim_p = hoje_p
+
+    with col_d1:
+        data_ini_p = st.date_input(
+            "De:",
+            value=data_ini_p,
+            max_value=hoje_p,
+            key="pesq_d_ini",
+            disabled=(periodo_sel != "Personalizado"),
+        )
+    with col_d2:
+        data_fim_p = st.date_input(
+            "Até:",
+            value=data_fim_p,
+            max_value=hoje_p,
+            key="pesq_d_fim",
+            disabled=(periodo_sel != "Personalizado"),
+        )
+
     @st.cache_data(ttl=0, show_spinner="Consultando atividades no Nekt…")
-    def fetch_pesquisa_corretores():
+    def fetch_pesquisa_corretores(d_ini_str: str, d_fim_str: str):
         from nekt_client import _load_jwt, init_session, execute_sql
         jwt = _load_jwt()
         if not jwt:
             raise ValueError("JWT não configurado.")
         sid = init_session(jwt)
 
-        hoje = datetime.today()
-        d_ini_str = (hoje - timedelta(days=30)).strftime("%Y-%m-%d")
-        d_fim_str = hoje.strftime("%Y-%m-%d")
         d_ini_iso = f"{d_ini_str}T00:00:00Z"
         d_fim_iso = f"{d_fim_str}T23:59:59Z"
 
-        # 1 — Sem resposta
-        # marked_as_done_time é varchar — comparar com string ISO diretamente
+        # 1 — Sem resposta (marked_as_done_time é varchar — comparar com string ISO)
         sql_sem_resp = f"""
 WITH enviados AS (
   SELECT a.person_id, a.deal_id,
@@ -1689,7 +1725,7 @@ WITH enviados AS (
   WHERE a.subject = 'SZI - Follow UP Parceiro'
     AND a.done = true AND a.is_deleted = false
     AND a.marked_as_done_time >= '{d_ini_iso}'
-    AND a.marked_as_done_time <  '{d_fim_iso}'
+    AND a.marked_as_done_time <= '{d_fim_iso}'
     AND d.pipeline_id = 45
   GROUP BY a.person_id, a.deal_id
 ),
@@ -1789,18 +1825,23 @@ ORDER BY data_conversa DESC
                 results[key] = [{"erro": str(e)}]
         return results
 
+    d_ini_str_p = data_ini_p.strftime("%Y-%m-%d")
+    d_fim_str_p = data_fim_p.strftime("%Y-%m-%d")
+
+    st.markdown("---")
     col_btn_p, col_info_p = st.columns([1, 4])
     with col_btn_p:
         rodar_pesquisa = st.button("🔄 Atualizar pesquisa", key="btn_pesquisa", type="primary")
     with col_info_p:
-        st.caption(f"Período: {(datetime.today()-timedelta(days=30)).strftime('%d/%m/%Y')} a {datetime.today().strftime('%d/%m/%Y')}")
+        st.caption(f"Período selecionado: {data_ini_p.strftime('%d/%m/%Y')} a {data_fim_p.strftime('%d/%m/%Y')}")
 
     if rodar_pesquisa or "pesquisa_cache" in st.session_state:
         if rodar_pesquisa:
             with st.spinner("Consultando atividades no Nekt (pode levar ~30s)..."):
                 try:
-                    dados = fetch_pesquisa_corretores()
+                    dados = fetch_pesquisa_corretores(d_ini_str_p, d_fim_str_p)
                     st.session_state["pesquisa_cache"] = dados
+                    st.session_state["pesquisa_periodo"] = f"{data_ini_p.strftime('%d/%m/%Y')} a {data_fim_p.strftime('%d/%m/%Y')}"
                 except Exception as e:
                     st.error(f"Erro ao buscar dados: {e}")
                     dados = None
@@ -1812,6 +1853,9 @@ ORDER BY data_conversa DESC
             enviaram   = [r for r in dados.get("enviaram",     []) if "erro" not in r]
             vao        = [r for r in dados.get("vao_procurar", []) if "erro" not in r]
             fora       = [r for r in dados.get("fora_perfil",  []) if "erro" not in r]
+
+            periodo_exibir = st.session_state.get("pesquisa_periodo", "—")
+            st.caption(f"📅 Dados referentes ao período: **{periodo_exibir}**")
 
             # Resumo
             c1p, c2p, c3p, c4p = st.columns(4)
