@@ -1716,8 +1716,9 @@ with tab_pesquisa:
         d_fim_iso = f"{d_fim_str}T23:59:59Z"
 
         N = lambda k: f"LOWER(COALESCE({k}, ''))"
+        F = FARMER_OWNER_ID  # shorthand
 
-        # 1 — Sem resposta: FUP enviado no período sem WhatsApp de resposta posterior
+        # 1 — Sem resposta: Farmer enviou FUP no período, corretor não respondeu no WhatsApp
         sql_sem_resp = f"""
 WITH enviados AS (
   SELECT a.person_id, a.deal_id,
@@ -1726,6 +1727,7 @@ WITH enviados AS (
   JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
   WHERE a.subject = 'SZI - Follow UP Parceiro'
     AND a.done = true AND a.is_deleted = false
+    AND a.user_id = {F}
     AND a.marked_as_done_time >= '{d_ini_iso}'
     AND a.marked_as_done_time <= '{d_fim_iso}'
     AND d.pipeline_id = 45
@@ -1746,87 +1748,62 @@ WHERE r.deal_id IS NULL
 ORDER BY dias_sem_resposta DESC
 """
 
-        # 2 — Enviaram terrenos: FUPs pendentes (done=false) com keywords na nota
-        sql_enviaram = f"""
+        # Macro para queries de categoria:
+        # Encontra deals com FUP concluído no período (Farmer) cujo próximo FUP pendente
+        # tem keyword na nota — independe do add_time do FUP pendente.
+        def _sql_categoria(keywords_sql: str, date_col: str) -> str:
+            return f"""
+WITH deals_ativos AS (
+  SELECT DISTINCT deal_id, person_id,
+    MAX(from_iso8601_timestamp(marked_as_done_time)) AS ultimo_contato
+  FROM nekt_operacional_bronze.pipedrive_activities
+  WHERE subject = 'SZI - Follow UP Parceiro'
+    AND done = true AND is_deleted = false
+    AND user_id = {F}
+    AND marked_as_done_time >= '{d_ini_iso}'
+    AND marked_as_done_time <= '{d_fim_iso}'
+  GROUP BY deal_id, person_id
+)
 SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_indicacao,
+  CAST(DATE_TRUNC('day', d.ultimo_contato) AS DATE) AS {date_col},
   SUBSTR(COALESCE(a.note, ''), 1, 300) AS trecho
 FROM nekt_operacional_bronze.pipedrive_activities a
-JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
+JOIN deals_ativos d ON a.deal_id = d.deal_id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
 WHERE a.subject = 'SZI - Follow UP Parceiro'
   AND a.done = false AND a.is_deleted = false
-  AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
-  AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
-  AND d.pipeline_id = 45
-  AND (
-    {N('a.note')} LIKE '%enviou%terreno%'
-    OR {N('a.note')} LIKE '%indicou%terreno%'
-    OR {N('a.note')} LIKE '%mandou%terreno%'
-    OR {N('a.note')} LIKE '%envi%terreno%'
-    OR {N('a.note')} LIKE '%terreno%enviado%'
-    OR {N('a.note')} LIKE '%segue%terreno%'
-    OR {N('a.note')} LIKE '%tenho%terreno%'
-  )
-ORDER BY data_indicacao DESC
+  AND a.user_id = {F}
+  AND ({keywords_sql})
+ORDER BY {date_col} DESC
 """
 
-        # 3 — Vão procurar: FUPs pendentes com keywords na nota
-        sql_vao = f"""
-SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_conversa,
-  SUBSTR(COALESCE(a.note, ''), 1, 300) AS trecho
-FROM nekt_operacional_bronze.pipedrive_activities a
-JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
-JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
-WHERE a.subject = 'SZI - Follow UP Parceiro'
-  AND a.done = false AND a.is_deleted = false
-  AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
-  AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
-  AND d.pipeline_id = 45
-  AND (
-    {N('a.note')} LIKE '%vai procurar%'
-    OR {N('a.note')} LIKE '%vou procurar%'
-    OR {N('a.note')} LIKE '%vou verificar%'
-    OR {N('a.note')} LIKE '%vou ver%'
-    OR {N('a.note')} LIKE '%vou buscar%'
-    OR {N('a.note')} LIKE '%vou olhar%'
-    OR {N('a.note')} LIKE '%vou pesquisar%'
-    OR {N('a.note')} LIKE '%vou levantar%'
-    OR {N('a.note')} LIKE '%estou procurando%'
-    OR {N('a.note')} LIKE '%estou verificando%'
-  )
-ORDER BY data_conversa DESC
-"""
+        sql_enviaram = _sql_categoria(
+            f"{N('a.note')} LIKE '%enviou%terreno%' OR {N('a.note')} LIKE '%indicou%terreno%' "
+            f"OR {N('a.note')} LIKE '%mandou%terreno%' OR {N('a.note')} LIKE '%envi%terreno%' "
+            f"OR {N('a.note')} LIKE '%terreno%enviado%' OR {N('a.note')} LIKE '%segue%terreno%' "
+            f"OR {N('a.note')} LIKE '%tenho%terreno%'",
+            "data_indicacao"
+        )
 
-        # 4 — Fora do perfil: FUPs pendentes com keywords na nota
-        sql_fora = f"""
-SELECT DISTINCT p.name AS corretor, a.deal_id,
-  CAST(DATE_TRUNC('day', a.add_time) AS DATE) AS data_conversa,
-  SUBSTR(COALESCE(a.note, ''), 1, 300) AS trecho
-FROM nekt_operacional_bronze.pipedrive_activities a
-JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
-JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
-WHERE a.subject = 'SZI - Follow UP Parceiro'
-  AND a.done = false AND a.is_deleted = false
-  AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
-  AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
-  AND d.pipeline_id = 45
-  AND (
-    {N('a.note')} LIKE '%não trabalha%'
-    OR {N('a.note')} LIKE '%nao trabalha%'
-    OR {N('a.note')} LIKE '%não tem%perfil%'
-    OR {N('a.note')} LIKE '%sem interesse%'
-    OR {N('a.note')} LIKE '%fora do perfil%'
-    OR {N('a.note')} LIKE '%não tenho terrenos%'
-    OR {N('a.note')} LIKE '%não trabalho%'
-    OR {N('a.note')} LIKE '%nao trabalho%'
-    OR {N('a.note')} LIKE '%não atuo%'
-  )
-ORDER BY data_conversa DESC
-"""
+        sql_vao = _sql_categoria(
+            f"{N('a.note')} LIKE '%vai procurar%' OR {N('a.note')} LIKE '%vou procurar%' "
+            f"OR {N('a.note')} LIKE '%vou verificar%' OR {N('a.note')} LIKE '%vou ver%' "
+            f"OR {N('a.note')} LIKE '%vou buscar%' OR {N('a.note')} LIKE '%vou olhar%' "
+            f"OR {N('a.note')} LIKE '%vou pesquisar%' OR {N('a.note')} LIKE '%vou levantar%' "
+            f"OR {N('a.note')} LIKE '%estou procurando%' OR {N('a.note')} LIKE '%estou verificando%'",
+            "data_conversa"
+        )
 
-        # 5 — Todas as atividades do período (WhatsApp + FUPs)
+        sql_fora = _sql_categoria(
+            f"{N('a.note')} LIKE '%não trabalha%' OR {N('a.note')} LIKE '%nao trabalha%' "
+            f"OR {N('a.note')} LIKE '%não tem%perfil%' OR {N('a.note')} LIKE '%sem interesse%' "
+            f"OR {N('a.note')} LIKE '%fora do perfil%' OR {N('a.note')} LIKE '%não tenho terrenos%' "
+            f"OR {N('a.note')} LIKE '%não trabalho%' OR {N('a.note')} LIKE '%nao trabalho%' "
+            f"OR {N('a.note')} LIKE '%não atuo%'",
+            "data_conversa"
+        )
+
+        # 5 — Todas as atividades Farmer no período (WhatsApp + FUPs)
         sql_todas = f"""
 SELECT p.name AS corretor, a.deal_id,
   a.subject AS tipo_atividade,
@@ -1838,6 +1815,7 @@ JOIN nekt_operacional_bronze.pipedrive_deals d ON a.deal_id = d.id
 JOIN nekt_operacional_bronze.pipedrive_persons p ON a.person_id = p.id
 WHERE (a.subject LIKE 'Whatsapp chat%' OR a.subject = 'SZI - Follow UP Parceiro')
   AND a.is_deleted = false
+  AND a.user_id = {F}
   AND a.add_time >= TIMESTAMP '{d_ini_str} 00:00:00'
   AND a.add_time <= TIMESTAMP '{d_fim_str} 23:59:59'
   AND d.pipeline_id = 45
